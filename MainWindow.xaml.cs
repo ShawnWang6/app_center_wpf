@@ -295,13 +295,13 @@ namespace CtrlCenter
             }
         }
 
-        public Brush ActionForeground
+        public System.Windows.Media.Brush ActionForeground
         {
             get
             {
                 if (string.IsNullOrEmpty(FullName))
-                    return Brushes.Black;
-                return Process == null ? Brushes.Green : Brushes.Red;
+                    return System.Windows.Media.Brushes.Black;
+                return Process == null ? System.Windows.Media.Brushes.Green : System.Windows.Media.Brushes.Red;
             }
         }
 
