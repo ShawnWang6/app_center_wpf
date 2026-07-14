@@ -5,7 +5,9 @@ using System.IO;
 using System.Linq;
 using System.Management;
 using System.Windows;
+using Newtonsoft.Json;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Forms;
 using System.Windows.Media;
 
@@ -27,25 +29,28 @@ namespace CtrlCenter
         {
             _apps = new[]
             {
-                new AppInfo
-                {
-                    Guid = "{B41B0EBC-95F3-45A5-AE4C-4A40696C198D}_is1",
-                    Name = "ZKC1601S开关机械特性综合测试系统",
-                    Exe = "ZKC1601S",
-                },
-                new AppInfo
-                {
-                    Guid = "{28692C18-A1DF-465B-9359-42C6F601243A}_is1",
-                    Name = "三通道回路电阻测试仪后台软件",
-                    Exe = "IRTest",
-                },
-                new AppInfo
-                {
-                    Guid = string.Empty,
-                    Name = "高压线缆测试系统",
-                    Exe = "HighVoltCableTestSystem",
-                }
-            };
+                    new AppInfo
+                    {
+                        Guid = "{B41B0EBC-95F3-45A5-AE4C-4A40696C198D}_is1",
+                        Name = "ZKC1601S开关机械特性综合测试系统",
+                        Exe = "ZKC1601S",
+                        DevNoGet = AppInfo.GetDevNoFromSwitch,
+                    },
+                    new AppInfo
+                    {
+                        Guid = "{28692C18-A1DF-465B-9359-42C6F601243A}_is1",
+                        Name = "三通道回路电阻测试仪后台软件",
+                        Exe = "IRTest",
+                        DevNoGet = AppInfo.GetDevNoFromIr,
+                    },
+                    new AppInfo
+                    {
+                        Guid = string.Empty,
+                        Name = "高压线缆测试系统",
+                        Exe = "HighVoltCableTestSystem",
+                        DevNoGet = AppInfo.GetDevNoFromHvc,
+                    }
+                };
 
             _apps[2].FullName = Util.LoadAppPath(_apps[2].Exe);
             if (!string.IsNullOrEmpty(_apps[2].FullName))
@@ -69,12 +74,154 @@ namespace CtrlCenter
                     app.Process = Util.GetProcess(app.FullName);
                     MonitorProcess(app);
                 }
+
+                if (string.IsNullOrEmpty(app.Guid))
+                {
+                    // app3 requires user to set ScanFolder
+                    app.ScanFolder = Util.LoadAppPath(app.Exe + "_ScanFolder");
+                }
+                else if (!string.IsNullOrEmpty(app.Location))
+                {
+                    app.ScanFolder = Path.Combine(app.Location, "sync");
+                }
+
+                // Ensure ScanFolder exists
+                if (!string.IsNullOrEmpty(app.ScanFolder) && !Directory.Exists(app.ScanFolder))
+                {
+                    Directory.CreateDirectory(app.ScanFolder);
+                }
                 UpdateAppActionCell(app);
             }
 
             dataGridApps.ItemsSource = _apps;
             _appWatcher = MonitorApps(_apps);
+            MonitorScanFolders(_apps);
         }
+
+        private void SetScanFolder_Click(object sender, RoutedEventArgs e)
+        {
+            var app = (sender as FrameworkElement)?.DataContext as AppInfo;
+            if (app == null) return;
+
+            using (var dlg = new FolderBrowserDialog())
+            {
+                dlg.Description = "Select a folder to monitor";
+                dlg.RootFolder = Environment.SpecialFolder.MyComputer;
+                dlg.ShowNewFolderButton = true;
+
+                if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    app.ScanFolder = dlg.SelectedPath;
+                    Util.SaveAppPath(app.Exe + "_ScanFolder", app.ScanFolder); // Save to registry
+                }
+            }
+        }
+
+        private readonly List<FileSystemWatcher> _watchers = new();
+        private void MonitorScanFolders(AppInfo[] apps)
+        {
+            foreach (var app in apps)
+            {
+                if (string.IsNullOrEmpty(app.ScanFolder)) continue;
+
+                Debug.WriteLine($"Monitoring directory: {app.ScanFolder}");
+                var watcher = new FileSystemWatcher(app.ScanFolder)
+                {
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+                    Filter = "*.*",
+                    EnableRaisingEvents = true
+                };
+
+                watcher.Created += (s, e) =>
+                {
+                    try
+                    {
+                        Debug.WriteLine($"File created: {e.FullPath}");
+                        ProcessNewFile(app, e.FullPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error in ProcessNewFile: {ex.Message}");
+                    }
+                };
+                _watchers.Add(watcher); // Keep a reference to prevent garbage collection
+            }
+        }
+
+        // Existing code...
+
+        private void ProcessNewFile(AppInfo app, string filePath)
+        {
+            var fileName = Path.GetFileNameWithoutExtension(filePath);
+            var parts = fileName.Split('_');            
+            var timestamp = parts[0];
+            string switchNo = null;
+            if (filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                switchNo = app.DevNoGet(filePath);
+            }
+            else if (filePath.EndsWith(".rpt", StringComparison.OrdinalIgnoreCase))
+            {
+                switchNo = app.DevNoGet(filePath);
+            }
+            else
+            {
+                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name}报表文件: {filePath}");
+                return;
+            }
+            if (string.IsNullOrEmpty(switchNo))
+            {
+                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name}报表文件开关: {filePath}");
+                return;
+            }
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                UpdateExperimentOutput(app, switchNo, timestamp);
+            }));
+        }
+
+        private void UpdateExperimentOutput(AppInfo app, string switchNo, string timestamp)
+        {
+            listViewExperimentOutput.Items.Clear();
+            var masterOutput = new
+            {
+                AppName = app.Name,
+                SwitchNo = switchNo,
+                ExperimentTime = timestamp
+            };
+            listViewExperimentOutput.Items.Add(masterOutput);
+
+            // Check other apps for matching switch numbers
+            foreach (var otherApp in _apps.Where(a => a != app))
+            {
+                if (string.IsNullOrEmpty(otherApp.ScanFolder) || !Directory.Exists(otherApp.ScanFolder))
+                {
+                    Debug.WriteLine($"ScanFolder does not exist for app: {otherApp.Name}");
+                    continue;
+                }
+
+                var latestFile = Directory.GetFiles(otherApp.ScanFolder, "*.*")
+                    .Select(f => new { File = f, Time = File.GetLastWriteTime(f) })
+                    .OrderByDescending(f => f.Time)
+                    .FirstOrDefault();
+
+                if (latestFile != null)
+                {
+                    var otherFileName = Path.GetFileNameWithoutExtension(latestFile.File);
+                    var othewrSwitchNo = otherApp.DevNoGet(latestFile.File);
+                    if (othewrSwitchNo != switchNo) continue;
+                    var slaveOutput = new
+                    {
+                        AppName = otherApp.Name,
+                        SwitchNo = switchNo,
+                        ExperimentTime = timestamp
+                    };
+                    listViewExperimentOutput.Items.Add(slaveOutput);
+                }
+            }
+        }
+
 
         void UpdateAppActionCell(AppInfo app)
         {
@@ -245,6 +392,8 @@ namespace CtrlCenter
         }
     }
 
+    
+
     class AppInfo : System.ComponentModel.INotifyPropertyChanged
     {
         public string Guid { get; set; }
@@ -252,7 +401,18 @@ namespace CtrlCenter
         public string Exe { get; set; }
         public string Desc { get; set; }
 
-            private string _location;
+        public string _scanFolder;
+        public string ScanFolder
+        {
+            get => _scanFolder;
+            set
+            {
+                _scanFolder = value;
+                OnPropertyChanged(nameof(ScanFolder));
+            }
+        }
+
+        private string _location;
         public string Location
         {
             get => _location;
@@ -311,6 +471,44 @@ namespace CtrlCenter
         {
             OnPropertyChanged(nameof(ActionText));
             OnPropertyChanged(nameof(ActionForeground));
+        }
+
+        public static string GetDevNoFromSwitch(string filePath)
+        {
+            var json = File.ReadAllText(filePath);
+            dynamic data = JsonConvert.DeserializeObject(json);
+            return data?.RptCfg?.SwitchNo;
+        }
+        public static string GetDevNoFromIr(string filePath)
+        {
+            var json = File.ReadAllText(filePath);
+            dynamic data = JsonConvert.DeserializeObject(json);
+            return data?.DevId;
+        }
+
+        public static string GetDevNoFromHvc(string filePath)
+        {
+            // Handle CSV file (app3)
+            var lines = File.ReadAllLines(filePath, System.Text.Encoding.ASCII);
+            if (lines.Length > 0)
+            {
+                return lines[0].Split(',')[0]; // First column is the switch number
+            }
+            return null;
+        }
+        public Func<string, string> DevNoGet;
+    }
+
+    public class EmptyToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            return string.IsNullOrEmpty(value as string) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        {
+            throw new NotImplementedException();
         }
     }
 }
