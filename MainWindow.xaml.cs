@@ -1,15 +1,17 @@
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Management;
+using System.Text.RegularExpressions;
 using System.Windows;
-using Newtonsoft.Json;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Forms;
 using System.Windows.Media;
+using File = System.IO.File;
 
 namespace CtrlCenter
 {
@@ -31,24 +33,30 @@ namespace CtrlCenter
             {
                     new AppInfo
                     {
+                        Type = AppType.ZKC,
                         Guid = "{B41B0EBC-95F3-45A5-AE4C-4A40696C198D}_is1",
                         Name = "ZKC1601S开关机械特性综合测试系统",
                         Exe = "ZKC1601S",
-                        DevNoGet = AppInfo.GetDevNoFromSwitch,
+                        GetTxtAndSwitchNo = AppInfo.GetTxtAndNoFromHvc,
+                        RptPattern = "yymmddHHmmss*.rpt",
                     },
                     new AppInfo
                     {
+                        Type = AppType.IR,
                         Guid = "{28692C18-A1DF-465B-9359-42C6F601243A}_is1",
                         Name = "三通道回路电阻测试仪后台软件",
                         Exe = "IRTest",
-                        DevNoGet = AppInfo.GetDevNoFromIr,
+                        GetTxtAndSwitchNo = AppInfo.GetTxtAndNoFromIr,
+                        RptPattern = "yymmddHHmmss_ir.rpt",
                     },
                     new AppInfo
                     {
+                        Type = AppType.HVC,
                         Guid = string.Empty,
                         Name = "高压线缆测试系统",
                         Exe = "HighVoltCableTestSystem",
-                        DevNoGet = AppInfo.GetDevNoFromHvc,
+                        GetTxtAndSwitchNo = AppInfo.GetTxtAndNoFromHvc,
+                        RptPattern = "yymmddHHmmss*.csv",
                     }
                 };
 
@@ -152,35 +160,210 @@ namespace CtrlCenter
 
         private void ProcessNewFile(AppInfo app, string filePath)
         {
-            var fileName = Path.GetFileNameWithoutExtension(filePath);
-            var parts = fileName.Split('_');            
-            var timestamp = parts[0];
-            string switchNo = null;
-            if (filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-            {
-                switchNo = app.DevNoGet(filePath);
-            }
-            else if (filePath.EndsWith(".rpt", StringComparison.OrdinalIgnoreCase))
-            {
-                switchNo = app.DevNoGet(filePath);
-            }
-            else
-            {
-                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name}报表文件: {filePath}");
-                return;
-            }
-            if (string.IsNullOrEmpty(switchNo))
-            {
-                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name}报表文件开关: {filePath}");
-                return;
-            }
-
+            RptFile rptFile = RptFileManager.GetAppNewRptFile(app, filePath);
+            if (rptFile == null) return;
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                UpdateExperimentOutput(app, switchNo, timestamp);
+                rptFileManager.AddAppRptFile(app, rptFile);
+                UpdateExperimentOutput(app, rptFile.SwitchNo, rptFile.TimeStamp.ToString());
             }));
         }
+        class RptFile
+        {
+            public long TimeStamp { get; set; }
+            public  AppType FileType { get; set; }
+            public string SwitchNo { get; set; }
+            public string FilePath { get; set; }            
+            public string Content { get; set; }
+            public string FileNameLowerCase { get; set; }
+        }
+        class RptFileManager
+        {
+            /// <summary>
+            //  最近做了试验的报表文件信息
+            /// </summary>
+            public RptFile Master { get; set; }
+            /// <summary>
+            //  和Master开关编号一致的最新的报表文件信息
+            /// </summary>
+            public Dictionary<AppType, RptFile> SwitchFiles { get; set; } = new Dictionary<AppType, RptFile>();
 
+
+            /// <summary>
+            //  仅描扫描改时间戳据当前时间最大的时间间隔(单位秒), 默认只扫描最近5分钟的报表文件
+            /// </summary>
+            public long ScanFileMaxTimeSpanSec { get; set; } = 300;
+
+            /// <summary>
+            //  扫描到的ScanFileTimeStampMin之内的文件，key为小写文件名(不含路径)
+            /// </summary>
+            public Dictionary<string, RptFile> LatestFiles { get; set; } = new Dictionary<string, RptFile>();
+
+            void RescanRptFiles(AppInfo[] apps)
+            {
+                // Get the current timestamp
+                long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+                // Temporary dictionary to store the latest files during this scan
+                var newLatestFiles = new Dictionary<string, RptFile>(StringComparer.OrdinalIgnoreCase);
+
+                // Scan each app's ScanFolder
+                foreach (var app in apps)
+                {
+                    if (string.IsNullOrEmpty(app.ScanFolder) || !Directory.Exists(app.ScanFolder))
+                    {
+                        Debug.WriteLine($"ScanFolder does not exist for app: {app.Name}");
+                        continue;
+                    }
+
+                    // Get all files in the ScanFolder
+                    var files = Directory.GetFiles(app.ScanFolder, app.RptPattern);
+                    foreach (var file in files)
+                    {
+                        var fileName = Path.GetFileName(file);
+                        fileName = fileName.ToLower();
+                        var fileTimestamp = GetTimestampFromFileName(fileName);
+                        if (fileTimestamp == null) continue;
+                        if (currentTimestamp - fileTimestamp.Value > ScanFileMaxTimeSpanSec)
+                        {
+                            continue;
+                        }
+
+                        // Check if the file already exists in the original LatestFiles
+                        if (LatestFiles.TryGetValue(fileName, out var existingRptFile))
+                        {
+                            newLatestFiles[fileName] = existingRptFile;
+                        }
+                        else
+                        {
+                            // Create a new RptFile object
+                            var (content, switchNo) = app.GetTxtAndSwitchNo(file);
+                            var newRptFile = new RptFile
+                            {
+                                TimeStamp = fileTimestamp.Value,
+                                FileType = app.Type,
+                                SwitchNo = switchNo,
+                                FilePath = file,
+                                Content = content,
+                                FileNameLowerCase = fileName
+
+                            };
+                            newLatestFiles[fileName] = newRptFile;
+                        }
+                    }
+                }
+
+                // Update LatestFiles with the new scan results
+                LatestFiles = newLatestFiles;
+            }
+            public void RefreshAppRptFiles(AppInfo[] apps, RptFile rpt = null)
+            {
+                if (rpt == null)
+                {
+                    RescanRptFiles(apps);
+                }
+                else
+                {
+                    // Get the current timestamp
+                    long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    if (currentTimestamp - rpt.TimeStamp > ScanFileMaxTimeSpanSec)
+                    {
+                        return;
+                    }
+                    if (LatestFiles.ContainsKey(rpt.FileNameLowerCase))
+                    {
+                        return;
+                    }
+                    LatestFiles.Add(rpt.FileNameLowerCase, rpt);
+                }
+
+                // Update Master if it has changed
+                var newMaster = LatestFiles.Values.OrderByDescending(r => r.TimeStamp).FirstOrDefault();
+                if (newMaster == null || Master == null ) 
+                {
+                    if (newMaster != null || Master != null)
+                    {
+                        // set from null to newMaster or from non-null to null
+                        Master = newMaster;
+                    }
+                }
+                else if (Master.TimeStamp != newMaster.TimeStamp || Master.FilePath != newMaster.FilePath)
+                {
+                    Master = newMaster;
+                    Debug.WriteLine($"Master updated: {Master.FilePath}");
+                }
+
+                // Update SwitchFiles
+                if (Master == null)
+                {
+                    SwitchFiles.Clear();
+                }
+                else
+                {
+                    var result = LatestFiles.Values
+                        .Where(rpt => rpt.FileType != Master.FileType && rpt.SwitchNo == Master.SwitchNo)
+                        .GroupBy(rpt => rpt.FileType)
+                        .Select(group => group.OrderByDescending(rpt => rpt.TimeStamp).First())
+                        .ToDictionary(gp => gp.FileType, gp => gp); // 转回 Dictionary
+                    result[Master.FileType] = Master;
+                    SwitchFiles = result;
+                }
+            }
+
+            /// <summary>
+            /// Extracts the timestamp from the file name.
+            /// Assumes the timestamp is the first part of the file name, separated by '_'.
+            /// </summary>
+            /// <param name="fileName">The file name to extract the timestamp from.</param>
+            /// <returns>The timestamp as a long, or null if invalid.</returns>
+            
+            private static readonly Regex _timestampRegex = new Regex(@"^(\d{12})_.*", RegexOptions.Compiled);
+            private static long? GetTimestampFromFileName(string fileName)
+            {                
+                Match match = _timestampRegex.Match(fileName);
+                if (match.Success)
+                {
+                    return long.Parse(match.Groups[1].Value);
+                }
+                return null;
+            }
+
+            public bool AddAppRptFile(AppInfo app, RptFile rpt)
+            {
+                string fileName = rpt.FileNameLowerCase;
+                return true;
+            }
+
+
+            public static RptFile GetAppNewRptFile(AppInfo app, string filePath)
+            {
+                var fileName = Path.GetFileNameWithoutExtension(filePath);
+                Match match = _timestampRegex.Match(fileName);
+                if (!match.Success)
+                {
+                    Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name}报表文件: {filePath}");
+                    return null;
+                }
+                var (content, switchNo) = app.GetTxtAndSwitchNo(filePath);
+                if (string.IsNullOrEmpty(switchNo))
+                {
+                    Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name} 文件{filePath}的开关编号");
+                    return null;
+                }
+                var fileTimestamp = GetTimestampFromFileName(fileName);
+                return new RptFile
+                {
+                    TimeStamp = fileTimestamp.Value,
+                                FileType = app.Type,
+                                SwitchNo = switchNo,
+                                FilePath = filePath,
+                                Content = content,
+                                FileNameLowerCase = fileName.ToLower()
+                };
+            }
+
+        }
+        private RptFileManager rptFileManager = new RptFileManager();
         private void UpdateExperimentOutput(AppInfo app, string switchNo, string timestamp)
         {
             listViewExperimentOutput.Items.Clear();
@@ -209,7 +392,7 @@ namespace CtrlCenter
                 if (latestFile != null)
                 {
                     var otherFileName = Path.GetFileNameWithoutExtension(latestFile.File);
-                    var othewrSwitchNo = otherApp.DevNoGet(latestFile.File);
+                    var (content,othewrSwitchNo) = otherApp.GetTxtAndSwitchNo(latestFile.File);
                     if (othewrSwitchNo != switchNo) continue;
                     var slaveOutput = new
                     {
@@ -392,15 +575,22 @@ namespace CtrlCenter
         }
     }
 
-    
+    public enum AppType
+    {
+        HVC,
+        ZKC,
+        IR,
+    }
+
 
     class AppInfo : System.ComponentModel.INotifyPropertyChanged
     {
+        public AppType Type { get; set; }        
         public string Guid { get; set; }
         public string Name { get; set; }
         public string Exe { get; set; }
         public string Desc { get; set; }
-
+        public string RptPattern { get; set; }
         public string _scanFolder;
         public string ScanFolder
         {
@@ -473,30 +663,31 @@ namespace CtrlCenter
             OnPropertyChanged(nameof(ActionForeground));
         }
 
-        public static string GetDevNoFromSwitch(string filePath)
+        public static (string, string) GetTxtAndNoFromZkc(string filePath, bool getContent)
         {
-            var json = File.ReadAllText(filePath);
+            var json = File.ReadAllText(filePath);            
             dynamic data = JsonConvert.DeserializeObject(json);
-            return data?.RptCfg?.SwitchNo;
+            return (json, data?.RptCfg?.SwitchNo);
         }
-        public static string GetDevNoFromIr(string filePath)
+        public static (string, string) GetTxtAndNoFromIr(string filePath)
         {
             var json = File.ReadAllText(filePath);
-            dynamic data = JsonConvert.DeserializeObject(json);
-            return data?.DevId;
+            dynamic data = JsonConvert.DeserializeObject(json);            
+            return (json, data?.DevId);
         }
 
-        public static string GetDevNoFromHvc(string filePath)
+        public static (string, string) GetTxtAndNoFromHvc(string filePath)
         {
             // Handle CSV file (app3)
+            //TODO  support GBK
             var lines = File.ReadAllLines(filePath, System.Text.Encoding.ASCII);
             if (lines.Length > 0)
             {
-                return lines[0].Split(',')[0]; // First column is the switch number
+                return (lines[0], lines[0].Split(',')[0]); // First column is the switch number
             }
-            return null;
+            return (null, null);
         }
-        public Func<string, string> DevNoGet;
+        public Func<string, (string, string)> GetTxtAndSwitchNo;
     }
 
     public class EmptyToVisibilityConverter : IValueConverter
