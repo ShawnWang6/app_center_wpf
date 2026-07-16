@@ -37,8 +37,8 @@ namespace CtrlCenter
                         Guid = "{B41B0EBC-95F3-45A5-AE4C-4A40696C198D}_is1",
                         Name = "ZKC1601S开关机械特性综合测试系统",
                         Exe = "ZKC1601S",
-                        GetTxtAndSwitchNo = AppInfo.GetTxtAndNoFromHvc,
-                        RptPattern = "yymmddHHmmss*.rpt",
+                        GetTxtAndSwitchNo = AppInfo.GetTxtAndNoFromZkc,
+                        RptPattern = "????????????_*.rpt",
                     },
                     new AppInfo
                     {
@@ -47,7 +47,7 @@ namespace CtrlCenter
                         Name = "三通道回路电阻测试仪后台软件",
                         Exe = "IRTest",
                         GetTxtAndSwitchNo = AppInfo.GetTxtAndNoFromIr,
-                        RptPattern = "yymmddHHmmss_ir.rpt",
+                        RptPattern = "????????????_ir*.rpt",
                     },
                     new AppInfo
                     {
@@ -56,7 +56,7 @@ namespace CtrlCenter
                         Name = "高压线缆测试系统",
                         Exe = "HighVoltCableTestSystem",
                         GetTxtAndSwitchNo = AppInfo.GetTxtAndNoFromHvc,
-                        RptPattern = "yymmddHHmmss*.csv",
+                        RptPattern = "????????????*.csv",
                     }
                 };
 
@@ -103,6 +103,9 @@ namespace CtrlCenter
 
             dataGridApps.ItemsSource = _apps;
             _appWatcher = MonitorApps(_apps);
+
+            rptFileManager.RefreshAppRptFiles(_apps);
+            listViewExperimentOutput.ItemsSource = rptFileManager.SwitchFiles.Values.OrderBy(o => o.TimeStamp).ToList();
             MonitorScanFolders(_apps);
         }
 
@@ -160,12 +163,12 @@ namespace CtrlCenter
 
         private void ProcessNewFile(AppInfo app, string filePath)
         {
-            RptFile rptFile = RptFileManager.GetAppNewRptFile(app, filePath);
-            if (rptFile == null) return;
+            RptFile rpt = RptFileManager.GetAppNewRptFile(app, filePath);
+            if (rpt == null) return;
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                rptFileManager.AddAppRptFile(app, rptFile);
-                UpdateExperimentOutput(app, rptFile.SwitchNo, rptFile.TimeStamp.ToString());
+                rptFileManager.RefreshAppRptFiles(_apps, rpt);
+                listViewExperimentOutput.ItemsSource = rptFileManager.SwitchFiles.Values.OrderBy(o => o.TimeStamp).ToList();
             }));
         }
         class RptFile
@@ -264,7 +267,6 @@ namespace CtrlCenter
                 }
                 else
                 {
-                    // Get the current timestamp
                     long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                     if (currentTimestamp - rpt.TimeStamp > ScanFileMaxTimeSpanSec)
                     {
@@ -277,13 +279,11 @@ namespace CtrlCenter
                     LatestFiles.Add(rpt.FileNameLowerCase, rpt);
                 }
 
-                // Update Master if it has changed
                 var newMaster = LatestFiles.Values.OrderByDescending(r => r.TimeStamp).FirstOrDefault();
-                if (newMaster == null || Master == null ) 
+                if (newMaster == null || Master == null)
                 {
                     if (newMaster != null || Master != null)
                     {
-                        // set from null to newMaster or from non-null to null
                         Master = newMaster;
                     }
                 }
@@ -293,7 +293,6 @@ namespace CtrlCenter
                     Debug.WriteLine($"Master updated: {Master.FilePath}");
                 }
 
-                // Update SwitchFiles
                 if (Master == null)
                 {
                     SwitchFiles.Clear();
@@ -304,7 +303,7 @@ namespace CtrlCenter
                         .Where(rpt => rpt.FileType != Master.FileType && rpt.SwitchNo == Master.SwitchNo)
                         .GroupBy(rpt => rpt.FileType)
                         .Select(group => group.OrderByDescending(rpt => rpt.TimeStamp).First())
-                        .ToDictionary(gp => gp.FileType, gp => gp); // 转回 Dictionary
+                        .ToDictionary(gp => gp.FileType, gp => gp);
                     result[Master.FileType] = Master;
                     SwitchFiles = result;
                 }
@@ -317,27 +316,20 @@ namespace CtrlCenter
             /// <param name="fileName">The file name to extract the timestamp from.</param>
             /// <returns>The timestamp as a long, or null if invalid.</returns>
             
-            private static readonly Regex _timestampRegex = new Regex(@"^(\d{12})_.*", RegexOptions.Compiled);
+            private static readonly Regex _timestampRegex = new Regex(@"^(?<timestamp>\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])[01]\d[0-5]\d[0-5]\d).*\.(?:rpt|csv)$", RegexOptions.Compiled);
             private static long? GetTimestampFromFileName(string fileName)
             {                
                 Match match = _timestampRegex.Match(fileName);
                 if (match.Success)
                 {
-                    return long.Parse(match.Groups[1].Value);
+                    return long.Parse(match.Groups["timestamp"].Value);
                 }
                 return null;
             }
 
-            public bool AddAppRptFile(AppInfo app, RptFile rpt)
-            {
-                string fileName = rpt.FileNameLowerCase;
-                return true;
-            }
-
-
             public static RptFile GetAppNewRptFile(AppInfo app, string filePath)
             {
-                var fileName = Path.GetFileNameWithoutExtension(filePath);
+                var fileName = Path.GetFileName(filePath);
                 Match match = _timestampRegex.Match(fileName);
                 if (!match.Success)
                 {
@@ -364,47 +356,7 @@ namespace CtrlCenter
 
         }
         private RptFileManager rptFileManager = new RptFileManager();
-        private void UpdateExperimentOutput(AppInfo app, string switchNo, string timestamp)
-        {
-            listViewExperimentOutput.Items.Clear();
-            var masterOutput = new
-            {
-                AppName = app.Name,
-                SwitchNo = switchNo,
-                ExperimentTime = timestamp
-            };
-            listViewExperimentOutput.Items.Add(masterOutput);
-
-            // Check other apps for matching switch numbers
-            foreach (var otherApp in _apps.Where(a => a != app))
-            {
-                if (string.IsNullOrEmpty(otherApp.ScanFolder) || !Directory.Exists(otherApp.ScanFolder))
-                {
-                    Debug.WriteLine($"ScanFolder does not exist for app: {otherApp.Name}");
-                    continue;
-                }
-
-                var latestFile = Directory.GetFiles(otherApp.ScanFolder, "*.*")
-                    .Select(f => new { File = f, Time = File.GetLastWriteTime(f) })
-                    .OrderByDescending(f => f.Time)
-                    .FirstOrDefault();
-
-                if (latestFile != null)
-                {
-                    var otherFileName = Path.GetFileNameWithoutExtension(latestFile.File);
-                    var (content,othewrSwitchNo) = otherApp.GetTxtAndSwitchNo(latestFile.File);
-                    if (othewrSwitchNo != switchNo) continue;
-                    var slaveOutput = new
-                    {
-                        AppName = otherApp.Name,
-                        SwitchNo = switchNo,
-                        ExperimentTime = timestamp
-                    };
-                    listViewExperimentOutput.Items.Add(slaveOutput);
-                }
-            }
-        }
-
+        
 
         void UpdateAppActionCell(AppInfo app)
         {
@@ -663,7 +615,7 @@ namespace CtrlCenter
             OnPropertyChanged(nameof(ActionForeground));
         }
 
-        public static (string, string) GetTxtAndNoFromZkc(string filePath, bool getContent)
+        public static (string, string) GetTxtAndNoFromZkc(string filePath)
         {
             var json = File.ReadAllText(filePath);            
             dynamic data = JsonConvert.DeserializeObject(json);

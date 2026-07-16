@@ -46,9 +46,10 @@
         <ListView Name="listViewExperimentOutput" Margin="10" Height="200" VerticalAlignment="Bottom">
             <ListView.View>
                 <GridView>
-                    <GridViewColumn Header="App Name" DisplayMemberBinding="{Binding AppName}" Width="150" />
+                    <GridViewColumn Header="App Name" DisplayMemberBinding="{Binding FileType}" Width="150" />
                     <GridViewColumn Header="Switch No" DisplayMemberBinding="{Binding SwitchNo}" Width="150" />
-                    <GridViewColumn Header="Experiment Time" DisplayMemberBinding="{Binding ExperimentTime}" Width="150" />
+                    <GridViewColumn Header="Experiment Time" DisplayMemberBinding="{Binding TimeStamp}" Width="150" />
+                    <GridViewColumn Header="File Path" DisplayMemberBinding="{Binding FilePath}" Width="300" />
                 </GridView>
             </ListView.View>
         </ListView>
