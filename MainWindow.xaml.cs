@@ -25,6 +25,17 @@ namespace CtrlCenter
         {
             InitializeComponent();
             Loaded += MainWindow_Loaded;
+            // Load ShowAppLocation from appsettings.json
+            ShowAppLocation = bool.TryParse(App.Configuration["ShowAppLocation"], out var showAppLocation) && showAppLocation;
+        }
+
+        public static readonly DependencyProperty ShowAppLocationProperty =
+            DependencyProperty.Register(nameof(ShowAppLocation), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
+
+        public bool ShowAppLocation
+        {
+            get => (bool)GetValue(ShowAppLocationProperty);
+            set => SetValue(ShowAppLocationProperty, value);
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
