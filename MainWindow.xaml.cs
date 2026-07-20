@@ -1,16 +1,13 @@
+using CtrlCenter.DataModel;
+using CtrlCenter.Storage;
 using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Management;
 using System.Text.RegularExpressions;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Forms;
-using System.Windows.Media;
+
 using File = System.IO.File;
 
 namespace CtrlCenter
@@ -181,190 +178,6 @@ namespace CtrlCenter
                 rptFileManager.RefreshAppRptFiles(_apps, rpt);
                 listViewExperimentOutput.ItemsSource = rptFileManager.SwitchFiles.Values.OrderBy(o => o.TimeStamp).ToList();
             }));
-        }
-        class RptFile
-        {
-            public long TimeStamp { get; set; }
-            public  AppType FileType { get; set; }
-            public string SwitchNo { get; set; }
-            public string FilePath { get; set; }            
-            public string Content { get; set; }
-            public string FileNameLowerCase { get; set; }
-        }
-        class RptFileManager
-        {
-            /// <summary>
-            //  最近做了试验的报表文件信息
-            /// </summary>
-            public RptFile Master { get; set; }
-            /// <summary>
-            //  和Master开关编号一致的最新的报表文件信息
-            /// </summary>
-            public Dictionary<AppType, RptFile> SwitchFiles { get; set; } = new Dictionary<AppType, RptFile>();
-
-
-            /// <summary>
-            //  仅描扫描改时间戳据当前时间最大的时间间隔(单位秒), 默认只扫描最近5分钟的报表文件
-            /// </summary>
-            public long ScanFileMaxTimeSpanSec { get; set; } = 300;
-
-            /// <summary>
-            //  扫描到的ScanFileTimeStampMin之内的文件，key为小写文件名(不含路径)
-            /// </summary>
-            public Dictionary<string, RptFile> LatestFiles { get; set; } = new Dictionary<string, RptFile>();
-
-            void RescanRptFiles(AppInfo[] apps)
-            {
-                // Get the current timestamp
-                long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
-                // Temporary dictionary to store the latest files during this scan
-                var newLatestFiles = new Dictionary<string, RptFile>(StringComparer.OrdinalIgnoreCase);
-
-                // Scan each app's ScanFolder
-                foreach (var app in apps)
-                {
-                    if (string.IsNullOrEmpty(app.ScanFolder) || !Directory.Exists(app.ScanFolder))
-                    {
-                        Debug.WriteLine($"ScanFolder does not exist for app: {app.Name}");
-                        continue;
-                    }
-
-                    // Get all files in the ScanFolder
-                    var files = Directory.GetFiles(app.ScanFolder, app.RptPattern);
-                    foreach (var file in files)
-                    {
-                        var fileName = Path.GetFileName(file);
-                        fileName = fileName.ToLower();
-                        var fileTimestamp = GetTimestampFromFileName(fileName);
-                        if (fileTimestamp == null) continue;
-                        if (currentTimestamp - fileTimestamp.Value > ScanFileMaxTimeSpanSec)
-                        {
-                            continue;
-                        }
-
-                        // Check if the file already exists in the original LatestFiles
-                        if (LatestFiles.TryGetValue(fileName, out var existingRptFile))
-                        {
-                            newLatestFiles[fileName] = existingRptFile;
-                        }
-                        else
-                        {
-                            // Create a new RptFile object
-                            var (content, switchNo) = app.GetTxtAndSwitchNo(file);
-                            var newRptFile = new RptFile
-                            {
-                                TimeStamp = fileTimestamp.Value,
-                                FileType = app.Type,
-                                SwitchNo = switchNo,
-                                FilePath = file,
-                                Content = content,
-                                FileNameLowerCase = fileName
-
-                            };
-                            newLatestFiles[fileName] = newRptFile;
-                        }
-                    }
-                }
-
-                // Update LatestFiles with the new scan results
-                LatestFiles = newLatestFiles;
-            }
-            public void RefreshAppRptFiles(AppInfo[] apps, RptFile rpt = null)
-            {
-                if (rpt == null)
-                {
-                    RescanRptFiles(apps);
-                }
-                else
-                {
-                    long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                    if (currentTimestamp - rpt.TimeStamp > ScanFileMaxTimeSpanSec)
-                    {
-                        return;
-                    }
-                    if (LatestFiles.ContainsKey(rpt.FileNameLowerCase))
-                    {
-                        return;
-                    }
-                    LatestFiles.Add(rpt.FileNameLowerCase, rpt);
-                }
-
-                var newMaster = LatestFiles.Values.OrderByDescending(r => r.TimeStamp).FirstOrDefault();
-                if (newMaster == null || Master == null)
-                {
-                    if (newMaster != null || Master != null)
-                    {
-                        Master = newMaster;
-                    }
-                }
-                else if (Master.TimeStamp != newMaster.TimeStamp || Master.FilePath != newMaster.FilePath)
-                {
-                    Master = newMaster;
-                    Debug.WriteLine($"Master updated: {Master.FilePath}");
-                }
-
-                if (Master == null)
-                {
-                    SwitchFiles.Clear();
-                }
-                else
-                {
-                    var result = LatestFiles.Values
-                        .Where(rpt => rpt.FileType != Master.FileType && rpt.SwitchNo == Master.SwitchNo)
-                        .GroupBy(rpt => rpt.FileType)
-                        .Select(group => group.OrderByDescending(rpt => rpt.TimeStamp).First())
-                        .ToDictionary(gp => gp.FileType, gp => gp);
-                    result[Master.FileType] = Master;
-                    SwitchFiles = result;
-                }
-            }
-
-            /// <summary>
-            /// Extracts the timestamp from the file name.
-            /// Assumes the timestamp is the first part of the file name, separated by '_'.
-            /// </summary>
-            /// <param name="fileName">The file name to extract the timestamp from.</param>
-            /// <returns>The timestamp as a long, or null if invalid.</returns>
-            
-            private static readonly Regex _timestampRegex = new Regex(@"^(?<timestamp>\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])[01]\d[0-5]\d[0-5]\d).*\.(?:rpt|csv)$", RegexOptions.Compiled);
-            private static long? GetTimestampFromFileName(string fileName)
-            {                
-                Match match = _timestampRegex.Match(fileName);
-                if (match.Success)
-                {
-                    return long.Parse(match.Groups["timestamp"].Value);
-                }
-                return null;
-            }
-
-            public static RptFile GetAppNewRptFile(AppInfo app, string filePath)
-            {
-                var fileName = Path.GetFileName(filePath);
-                Match match = _timestampRegex.Match(fileName);
-                if (!match.Success)
-                {
-                    Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name}报表文件: {filePath}");
-                    return null;
-                }
-                var (content, switchNo) = app.GetTxtAndSwitchNo(filePath);
-                if (string.IsNullOrEmpty(switchNo))
-                {
-                    Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name} 文件{filePath}的开关编号");
-                    return null;
-                }
-                var fileTimestamp = GetTimestampFromFileName(fileName);
-                return new RptFile
-                {
-                    TimeStamp = fileTimestamp.Value,
-                                FileType = app.Type,
-                                SwitchNo = switchNo,
-                                FilePath = filePath,
-                                Content = content,
-                                FileNameLowerCase = fileName.ToLower()
-                };
-            }
-
         }
         private RptFileManager rptFileManager = new RptFileManager();
         
@@ -663,6 +476,286 @@ namespace CtrlCenter
         public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
         {
             throw new NotImplementedException();
+        }
+    }
+
+    
+    class RptFileManager
+    {
+        /// <summary>
+        //  最近做了试验的报表文件信息
+        /// </summary>
+        public RptFile Master { get; set; }
+        /// <summary>
+        //  和Master开关编号一致的最新的报表文件信息
+        /// </summary>
+        public Dictionary<AppType, RptFile> SwitchFiles { get; set; } = new Dictionary<AppType, RptFile>();
+
+
+        /// <summary>
+        //  仅描扫描改时间戳据当前时间最大的时间间隔(单位秒), 默认只扫描最近5分钟的报表文件
+        /// </summary>
+        public long ScanFileMaxTimeSpanSec { get; set; } = 300;
+
+        
+
+        /// <summary>
+        //  扫描到的ScanFileTimeStampMin之内的文件，key为小写文件名(不含路径)
+        /// </summary>
+        public Dictionary<string, RptFile> LatestFiles { get; set; } = new Dictionary<string, RptFile>();
+
+        void RescanRptFiles(AppInfo[] apps)
+        {
+            // Get the current timestamp
+            long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+            // Temporary dictionary to store the latest files during this scan
+            var newLatestFiles = new Dictionary<string, RptFile>(StringComparer.OrdinalIgnoreCase);
+
+            // Scan each app's ScanFolder
+            foreach (var app in apps)
+            {
+                if (string.IsNullOrEmpty(app.ScanFolder) || !Directory.Exists(app.ScanFolder))
+                {
+                    Debug.WriteLine($"ScanFolder does not exist for app: {app.Name}");
+                    continue;
+                }
+
+                // Get all files in the ScanFolder
+                var files = Directory.GetFiles(app.ScanFolder, app.RptPattern);
+                foreach (var file in files)
+                {
+                    var fileName = Path.GetFileName(file);
+                    fileName = fileName.ToLower();
+                    var fileTimestamp = GetTimestampFromFileName(fileName);
+                    if (fileTimestamp == null) continue;
+                    if (currentTimestamp - fileTimestamp.Value > ScanFileMaxTimeSpanSec)
+                    {
+                        continue;
+                    }
+
+                    // Check if the file already exists in the original LatestFiles
+                    if (LatestFiles.TryGetValue(fileName, out var existingRptFile))
+                    {
+                        newLatestFiles[fileName] = existingRptFile;
+                    }
+                    else
+                    {
+                        // Create a new RptFile object
+                        var (content, switchNo) = app.GetTxtAndSwitchNo(file);
+                        var newRptFile = new RptFile
+                        {
+                            TimeStamp = fileTimestamp.Value,
+                            FileType = app.Type,
+                            SwitchNo = switchNo,
+                            FilePath = file,
+                            Content = content,
+                            FileNameLowerCase = fileName
+
+                        };
+                        newLatestFiles[fileName] = newRptFile;
+                    }
+                }
+            }
+
+            // Update LatestFiles with the new scan results
+            LatestFiles = newLatestFiles;
+        }
+        public void RefreshAppRptFiles(AppInfo[] apps, RptFile rpt = null)
+        {
+            if (rpt == null)
+            {
+                RescanRptFiles(apps);
+            }
+            else
+            {
+                long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                if (currentTimestamp - rpt.TimeStamp > ScanFileMaxTimeSpanSec)
+                {
+                    return;
+                }
+                if (LatestFiles.ContainsKey(rpt.FileNameLowerCase))
+                {
+                    return;
+                }
+                LatestFiles.Add(rpt.FileNameLowerCase, rpt);
+            }
+
+            var newMaster = LatestFiles.Values.OrderByDescending(r => r.TimeStamp).FirstOrDefault();
+            if (newMaster == null || Master == null)
+            {
+                if (newMaster != null || Master != null)
+                {
+                    Master = newMaster;
+                }
+            }
+            else if (Master.TimeStamp != newMaster.TimeStamp || Master.FilePath != newMaster.FilePath)
+            {
+                Master = newMaster;
+                Debug.WriteLine($"Master updated: {Master.FilePath}");
+            }
+
+            if (Master == null)
+            {
+                SwitchFiles.Clear();
+            }
+            else
+            {
+                var result = LatestFiles.Values
+                    .Where(rpt => rpt.FileType != Master.FileType && rpt.SwitchNo == Master.SwitchNo)
+                    .GroupBy(rpt => rpt.FileType)
+                    .Select(group => group.OrderByDescending(rpt => rpt.TimeStamp).First())
+                    .ToDictionary(gp => gp.FileType, gp => gp);
+                result[Master.FileType] = Master;
+                SwitchFiles = result;
+            }
+        }
+
+        /// <summary>
+        /// Extracts the timestamp from the file name.
+        /// Assumes the timestamp is the first part of the file name, separated by '_'.
+        /// </summary>
+        /// <param name="fileName">The file name to extract the timestamp from.</param>
+        /// <returns>The timestamp as a long, or null if invalid.</returns>
+
+        private static readonly Regex _timestampRegex = new Regex(@"^(?<timestamp>\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])[01]\d[0-5]\d[0-5]\d).*\.(?:rpt|csv)$", RegexOptions.Compiled);
+        private static long? GetTimestampFromFileName(string fileName)
+        {
+            Match match = _timestampRegex.Match(fileName);
+            if (match.Success)
+            {
+                return long.Parse(match.Groups["timestamp"].Value);
+            }
+            return null;
+        }
+
+        public static RptFile GetAppNewRptFile(AppInfo app, string filePath)
+        {
+            var fileName = Path.GetFileName(filePath);
+            Match match = _timestampRegex.Match(fileName);
+            if (!match.Success)
+            {
+                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name}报表文件: {filePath}");
+                return null;
+            }
+            var (content, switchNo) = app.GetTxtAndSwitchNo(filePath);
+            if (string.IsNullOrEmpty(switchNo))
+            {
+                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name} 文件{filePath}的开关编号");
+                return null;
+            }
+            var fileTimestamp = GetTimestampFromFileName(fileName);
+            return new RptFile
+            {
+                TimeStamp = fileTimestamp.Value,
+                FileType = app.Type,
+                SwitchNo = switchNo,
+                FilePath = filePath,
+                Content = content,
+                FileNameLowerCase = fileName.ToLower()
+            };
+        }
+
+    }
+
+    class SwitchReport
+    {
+        public string SwitchNo { get; set; } 
+        public RptFile[] Reports { get; set; }  = new RptFile[3];
+        public DateTime BeginTime { get; set; }
+        public DateTime EndTime { get; set; }
+    }
+
+    
+
+    class RptHisManager
+    {
+        private SwitchHisRepos _hisRepos;
+        private readonly IList<SwitchHisEntity> _rptHis = new List<SwitchHisEntity>();
+        private readonly IDictionary<string, IList<SwitchHisEntity>> _switchHis = new Dictionary<string, IList<SwitchHisEntity>>();
+        
+        public RptHisManager(SwitchHisRepos hisRepos)
+        {
+            _hisRepos = hisRepos;
+        }
+
+        public string LoadRptHis() 
+        {
+            var err = string.Empty;
+            try
+            {
+                var his = _hisRepos.GetSwitchHis(null, null, null);
+                _rptHis.Clear();
+                _switchHis.Clear();
+                foreach (var item in his)
+                {
+                    _rptHis.Add(item);
+                    if (!_switchHis.TryGetValue(item.SwitchNo, out var list))
+                    {
+                        _switchHis[item.SwitchNo] = new List<SwitchHisEntity>();
+                    }
+                    _switchHis[item.SwitchNo].Add(item);
+                }
+
+            }
+            catch(Exception ex)
+            {
+                err = ex.Message;
+            }            
+            return err;
+        }
+        public bool SaveRptfiles(IDictionary<AppType, RptFile> switchRpts)
+        {
+            if (switchRpts.Count < 2)
+            {
+                return false;
+            }
+
+            // Sort the files by timestamp
+            var sortedFiles = switchRpts.Values.OrderBy(v => v.TimeStamp).ToArray();
+            var switchNo = sortedFiles.First().SwitchNo;
+            var minTime = Util.ParseYyMmDdHhMmSs(sortedFiles.First().TimeStamp);
+            var maxTime = Util.ParseYyMmDdHhMmSs(sortedFiles.Last().TimeStamp);
+
+            // Convert sortedFiles to SwitchRptModel
+            var rptModel = new SwitchRptModel
+            {
+                Files = sortedFiles.Select(rpt => new RptFileBase
+                {
+                    TimeStamp = rpt.TimeStamp,
+                    FileType = rpt.FileType,
+                    Content = rpt.Content,
+                    FileNameLowerCase = rpt.FileNameLowerCase,
+                }).ToArray()
+            };
+
+            // Serialize the SwitchRptModel to JSON
+            var rptJson = JsonConvert.SerializeObject(rptModel);
+
+            // Create a new SwitchHisEntity
+            var switchReport = new SwitchHisEntity
+            {
+                SwitchNo = switchNo,
+                RptJson = rptJson,
+                MinTime = minTime,
+                MaxTime = maxTime
+            };
+                        
+            var err = _hisRepos.SaveSwitchHis(switchReport);
+            if (string.IsNullOrEmpty(err))
+            {
+                return false;  
+            }
+
+            // Add to in-memory collections
+            _rptHis.Add(switchReport);
+            if (!_switchHis.TryGetValue(switchNo, out var list))
+            {
+                _switchHis[switchNo] = new List<SwitchHisEntity>();
+            }
+            _switchHis[switchNo].Add(switchReport);
+
+            return true;
         }
     }
 }

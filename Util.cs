@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 //using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Management;
@@ -13,6 +14,15 @@ namespace CtrlCenter
 {
     public static class Util
     {
+        public static DateTime ParseYyMmDdHhMmSs(long input)
+        {
+            // 1. 转换为字符串，并补足为14位（防止首位为0时丢失）
+            string s = input.ToString().PadLeft(14, '0');
+
+            // 2. 解析为 DateTime
+            return DateTime.ParseExact(s, "yyMMddHHmmss", CultureInfo.InvariantCulture);
+        }
+
         public static IEnumerable<string> FindFilesEnumerable(string rootPath, string searchPattern)
         {
             var queue = new Queue<string>();
