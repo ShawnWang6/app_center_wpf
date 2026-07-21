@@ -1,0 +1,58 @@
+<Window x:Class="CtrlCenter.View.AppMainView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:CtrlCenter.ViewModel"         
+        mc:Ignorable="d"
+        Title="App控制中心" Height="600" Width="1023"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Microsoft YaHei"
+        FontSize="16">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </Window.Resources>
+    <DataGrid AutoGenerateColumns="False" 
+        CanUserAddRows="False" 
+        ItemsSource="{Binding Apps}" 
+        Margin="0,0,412,443"
+        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+              >
+        <DataGrid.ColumnHeaderStyle>
+            <Style TargetType="{x:Type DataGridColumnHeader}">
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+        </DataGrid.ColumnHeaderStyle>
+        <DataGrid.Columns>
+            <DataGridTextColumn Header="App名称"  Binding="{Binding Name}" Width="280" />
+
+            <DataGridTemplateColumn Header="操作" Width="300">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                            <Button Content="编辑名称" Margin="2,0" 
+                                IsEnabled="{Binding CanEditName}"
+                                Visibility="{Binding CanEditName, Converter={StaticResource BoolToVisibility}}" 
+                                Command="{Binding DataContext.EditAppNameCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                CommandParameter="{Binding}" />
+                            <Button Content="{Binding ActionText}" Margin="2,0"
+                                Command="{Binding DataContext.DynamicActionCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                CommandParameter="{Binding}" />
+                            <Button Content="选择报表目录"  Margin="2,0"
+                                IsEnabled="{Binding CanSelectRptLoc}"
+                                Visibility="{Binding CanSelectRptLoc, Converter={StaticResource BoolToVisibility}}" 
+                                Command="{Binding DataContext.SelectRptLocCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                CommandParameter="{Binding}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+        </DataGrid.Columns>
+    </DataGrid>
+</Window>

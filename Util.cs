@@ -1,4 +1,6 @@
+using CtrlCenter.DataModel;
 using Microsoft.Win32;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -14,6 +16,54 @@ namespace CtrlCenter
 {
     public static class Util
     {
+        public static (string, string) GetTxtAndNoFromZkc(string filePath)
+        {
+            var json = File.ReadAllText(filePath);
+            dynamic data = JsonConvert.DeserializeObject(json);
+            return (json, data?.RptCfg?.SwitchNo);
+        }
+        public static (string, string) GetTxtAndNoFromIr(string filePath)
+        {
+            var json = File.ReadAllText(filePath);
+            dynamic data = JsonConvert.DeserializeObject(json);
+            return (json, data?.DevId);
+        }
+
+        public static (string, string) GetTxtAndNoFromHvc(string filePath)
+        {
+            // Handle CSV file (app3)
+            //TODO  support GBK
+            var lines = File.ReadAllLines(filePath, System.Text.Encoding.ASCII);
+            if (lines.Length > 0)
+            {
+                return (lines[0], lines[0].Split(',')[0]); // First column is the switch number
+            }
+            return (null, null);
+        }
+
+        public static bool StartApp(string appFullName)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                UseShellExecute = true,
+                WorkingDirectory = Path.GetDirectoryName(appFullName),
+                FileName = appFullName,
+                Verb = "runas"
+            };
+
+            try
+            {
+                using (Process.Start(startInfo)) { }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"启动失败: {ex.Message}");
+            }
+
+            return false;
+        }
+
         public static DateTime ParseYyMmDdHhMmSs(long input)
         {
             // 1. 转换为字符串，并补足为14位（防止首位为0时丢失）

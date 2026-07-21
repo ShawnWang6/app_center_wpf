@@ -26,4 +26,8 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.Management" Version="6.0.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="View\" />
+  </ItemGroup>
 </Project>

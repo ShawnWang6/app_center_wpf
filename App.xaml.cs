@@ -1,6 +1,7 @@
 
 using CtrlCenter.DataModel;
 using CtrlCenter.Storage;
+using CtrlCenter.View;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.IO;
@@ -39,16 +40,17 @@ namespace CtrlCenter
 
             //registerwindows and ViewModel
             services.AddTransient<MainWindow>();
-            //services.AddTransient<MainViewModel>();
+            services.AddTransient<AppMainView>();
             //services.AddTransient<SettingsViewModel>();
 
             ServiceProvider = services.BuildServiceProvider();
 
 
-            
+
             //starup mainwindow
-            var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
-            mainWindow.Show();
+            //var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
+            var mainWindow = ServiceProvider.GetRequiredService<AppMainView>();
+            mainWindow.Show();            
         }
 
         private void InitializeDatabase()

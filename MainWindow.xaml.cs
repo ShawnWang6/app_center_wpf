@@ -171,11 +171,11 @@ namespace CtrlCenter
 
         private void ProcessNewFile(AppInfo app, string filePath)
         {
-            RptFile rpt = RptFileManager.GetAppNewRptFile(app, filePath);
+            RptFile rpt = RptFileManager.GetAppNewRptFile(app.GetTxtAndSwitchNo, app.Name, app.Type, filePath);
             if (rpt == null) return;
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                rptFileManager.RefreshAppRptFiles(_apps, rpt);
+                rptFileManager.RefreshAppRptFiles(_apps, null, rpt);
                 listViewExperimentOutput.ItemsSource = rptFileManager.SwitchFiles.Values.OrderBy(o => o.TimeStamp).ToList();
             }));
         }
@@ -187,28 +187,7 @@ namespace CtrlCenter
             app.NotifyActionChanged();
         }
 
-        bool StartApp(AppInfo app)
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                UseShellExecute = true,
-                WorkingDirectory = Path.GetDirectoryName(app.FullName),
-                FileName = app.FullName,
-                Verb = "runas"
-            };
-
-            try
-            {
-                using (Process.Start(startInfo)) { }
-                return true;
-            }
-            catch (Exception ex)
-            {
-                System.Windows.MessageBox.Show($"启动失败: {ex.Message}");
-            }
-
-            return false;
-        }
+        
 
         private void ActionButton_Click(object sender, RoutedEventArgs e)
         {
@@ -221,7 +200,7 @@ namespace CtrlCenter
             }
             else if (!string.IsNullOrEmpty(app.FullName))
             {
-                StartApp(app);
+                Util.StartApp(app.FullName);
             }
             else if (app.Index == 2)
             {
@@ -351,12 +330,7 @@ namespace CtrlCenter
         }
     }
 
-    public enum AppType
-    {
-        HVC,
-        ZKC,
-        IR,
-    }
+    
 
 
     class AppInfo : System.ComponentModel.INotifyPropertyChanged
@@ -561,11 +535,77 @@ namespace CtrlCenter
             // Update LatestFiles with the new scan results
             LatestFiles = newLatestFiles;
         }
-        public void RefreshAppRptFiles(AppInfo[] apps, RptFile rpt = null)
+
+        void RescanRptFiles(IList<AppModel> apps)
+        {
+            // Get the current timestamp
+            long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+            // Temporary dictionary to store the latest files during this scan
+            var newLatestFiles = new Dictionary<string, RptFile>(StringComparer.OrdinalIgnoreCase);
+
+            // Scan each app's ScanFolder
+            foreach (var app in apps)
+            {
+                if (string.IsNullOrEmpty(app.ScanFolder) || !Directory.Exists(app.ScanFolder))
+                {
+                    Debug.WriteLine($"ScanFolder does not exist for app: {app.Name}");
+                    continue;
+                }
+
+                // Get all files in the ScanFolder
+                var files = Directory.GetFiles(app.ScanFolder, app.RptPattern);
+                foreach (var file in files)
+                {
+                    var fileName = Path.GetFileName(file);
+                    fileName = fileName.ToLower();
+                    var fileTimestamp = GetTimestampFromFileName(fileName);
+                    if (fileTimestamp == null) continue;
+                    if (currentTimestamp - fileTimestamp.Value > ScanFileMaxTimeSpanSec)
+                    {
+                        continue;
+                    }
+
+                    // Check if the file already exists in the original LatestFiles
+                    if (LatestFiles.TryGetValue(fileName, out var existingRptFile))
+                    {
+                        newLatestFiles[fileName] = existingRptFile;
+                    }
+                    else
+                    {
+                        // Create a new RptFile object
+                        var (content, switchNo) = app.GetTxtAndSwitchNo(file);
+                        var newRptFile = new RptFile
+                        {
+                            TimeStamp = fileTimestamp.Value,
+                            FileType = app.Type,
+                            SwitchNo = switchNo,
+                            FilePath = file,
+                            Content = content,
+                            FileNameLowerCase = fileName
+
+                        };
+                        newLatestFiles[fileName] = newRptFile;
+                    }
+                }
+            }
+
+            // Update LatestFiles with the new scan results
+            LatestFiles = newLatestFiles;
+        }
+
+        public void RefreshAppRptFiles(AppInfo[] apps, IList<AppModel> appsV2 = null, RptFile rpt = null)
         {
             if (rpt == null)
             {
-                RescanRptFiles(apps);
+                if (apps != null)
+                {
+                    RescanRptFiles(apps);
+                }
+                if (appsV2 != null)
+                {
+                    RescanRptFiles(appsV2);
+                }
             }
             else
             {
@@ -629,26 +669,27 @@ namespace CtrlCenter
             return null;
         }
 
-        public static RptFile GetAppNewRptFile(AppInfo app, string filePath)
+        public static RptFile GetAppNewRptFile(Func<string, (string, string)> getTxtAndSwitchNo,
+            string appName, AppType appType, string filePath)
         {
             var fileName = Path.GetFileName(filePath);
             Match match = _timestampRegex.Match(fileName);
             if (!match.Success)
             {
-                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name}报表文件: {filePath}");
+                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{appName}报表文件: {filePath}");
                 return null;
             }
-            var (content, switchNo) = app.GetTxtAndSwitchNo(filePath);
+            var (content, switchNo) = getTxtAndSwitchNo(filePath);
             if (string.IsNullOrEmpty(switchNo))
             {
-                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name} 文件{filePath}的开关编号");
+                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{appName} 文件{filePath}的开关编号");
                 return null;
             }
             var fileTimestamp = GetTimestampFromFileName(fileName);
             return new RptFile
             {
                 TimeStamp = fileTimestamp.Value,
-                FileType = app.Type,
+                FileType = appType,
                 SwitchNo = switchNo,
                 FilePath = filePath,
                 Content = content,
