@@ -37,7 +37,7 @@ namespace CtrlCenter.DataModel
             }
         }
         public Func<string, (string, string)> GetTxtAndSwitchNo { get; set; }
-        public bool CanEditName { get; set; } = true;        
+        public bool CanEditName { get; set; } = false;        
         public bool CanSelectRptLoc { get; set; } = false;
     }
 }

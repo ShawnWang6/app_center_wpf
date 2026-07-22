@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <!-- SQLite 核心包 -->
+    <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="6.0.0" />  
     <!-- ✅ 关键：这个包会自动初始化 SQLitePCL.raw -->    
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="6.0.0" />

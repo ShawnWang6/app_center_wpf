@@ -1,4 +1,7 @@
 ﻿using CtrlCenter.DataModel;
+using CtrlCenter.Interfaces;
+using CtrlCenter.Logic;
+using CtrlCenter.Storage;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -13,12 +16,20 @@ namespace CtrlCenter.ViewModel
 {
     public class MainViewModel : INotifyPropertyChanged
     {
-        private RptFileManager rptFileManager = new RptFileManager();
-        private HashSet<AppViewModel> runningApp = new HashSet<AppViewModel>();        
+        private readonly ISwitchHisRepos _switchHisRepos;
+        private readonly RptFileManager rptFileManager = new RptFileManager();
+        private readonly HashSet<AppViewModel> runningApp = new HashSet<AppViewModel>();        
         private readonly List<FileSystemWatcher> _watchers = new();
         private ManagementEventWatcher _appWatcher;
-        private AppModel[] _apps;
+        private AppModel[] _apps;        
+        private RptHisManager _rptHisManager;
+        private RptFileManager _rptFileManager;
+
+
+
         public ObservableCollection<AppViewModel> Apps { get; set; }
+
+        public ObservableCollection<RptFileViewModel> RptFiless { get; set; } = new ObservableCollection<RptFileViewModel>();
 
         public ICommand EditAppNameCommand { get; }
         public ICommand SelectAppLocCommand { get; }
@@ -26,14 +37,13 @@ namespace CtrlCenter.ViewModel
 
         private void InitApp()
         {
-
             var _apps = new AppModel[]
             {
                 new AppModel
                 {
                         Type = AppType.ZKC,
                         Guid = "{B41B0EBC-95F3-45A5-AE4C-4A40696C198D}_is1",
-                        Name = "ZKC1601S开关机械特性综合测试系统",
+                        Name = "ZKC1601开关机械特性综合测试系统",
                         Exe = "ZKC1601S",
                         GetTxtAndSwitchNo = Util.GetTxtAndNoFromZkc,
                         RptPattern = "????????????_*.rpt",
@@ -107,10 +117,17 @@ namespace CtrlCenter.ViewModel
             
 
             _appWatcher = MonitorApps(Apps);
-
-            rptFileManager.RefreshAppRptFiles(null, _apps.ToList());
-            //listViewExperimentOutput.ItemsSource = rptFileManager.SwitchFiles.Values.OrderBy(o => o.TimeStamp).ToList();
+            rptFileManager.RefreshAppRptFiles(_apps.ToList());
+            RefreshSwitchRptFiles();
             MonitorScanFolders(Apps);
+        }
+        void RefreshSwitchRptFiles()
+        {
+            RptFiless.Clear();
+            foreach (var file in rptFileManager.SwitchFiles.Values)
+            {
+                RptFiless.Add(new RptFileViewModel(file));
+            }
         }
         ManagementEventWatcher MonitorApps(IList<AppViewModel> apps)
         {
@@ -195,8 +212,8 @@ namespace CtrlCenter.ViewModel
             if (rpt == null) return;
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
-                rptFileManager.RefreshAppRptFiles(null, _apps, rpt);
-                // TODO  listViewExperimentOutput.ItemsSource = rptFileManager.SwitchFiles.Values.OrderBy(o => o.TimeStamp).ToList();
+                rptFileManager.RefreshAppRptFiles(_apps, rpt);
+                RefreshSwitchRptFiles();
             }));
         }
         private bool MonitorProcess(AppViewModel app)
@@ -233,13 +250,18 @@ namespace CtrlCenter.ViewModel
             }));
         }
 
-        public MainViewModel()
+        public MainViewModel(ISwitchHisRepos switchHisRepos)
         {
+            _switchHisRepos = switchHisRepos;
             Apps = new ObservableCollection<AppViewModel>();
             EditAppNameCommand = new RelayCommand<AppViewModel>(ExecEditAddName);
             SelectAppLocCommand = new RelayCommand<AppViewModel>(ExecuteSelectAppLoc);
             DynamicActionCommand = new RelayCommand<AppViewModel>(ExecuteDynamicAction);
+            _rptHisManager = new RptHisManager(switchHisRepos);
             InitApp();
+            _rptHisManager.LoadRptHis(); //TODO init it on app start OnStartup
+
+            
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -332,5 +354,5 @@ namespace CtrlCenter.ViewModel
         public bool CanExecute(object parameter) => _canExecute?.Invoke((T)parameter) ?? true;
         public void Execute(object parameter) => _execute((T)parameter);
         public event EventHandler CanExecuteChanged;
-    }
+    }    
 }

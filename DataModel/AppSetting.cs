@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CtrlCenter.Storage;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -16,9 +17,8 @@ namespace CtrlCenter.DataModel
         /// </summary>
         public TimeSpan LoadHisMaxTimeSpan { get; set; }
 
-        [Required(ErrorMessage = "数据库连接字符串不能为空")]
-        public string DatabaseConnection { get; set; }
-
+        public DbOptions DbOptions { get; set; } = new DbOptions();
+        
         //[Range(1, 100, ErrorMessage = "重试次数必须在1-100之间")]
         //public int MaxRetryCount { get; set; }
 

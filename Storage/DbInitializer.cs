@@ -12,10 +12,10 @@ namespace CtrlCenter.Storage
     {
         private readonly string _connectionString;
 
-        public DabInitializer(string dbPath)
+        public DabInitializer(string connString)
         {
             // 连接字符串
-            _connectionString = $"Data Source={dbPath};";
+            _connectionString = connString;
         }
 
         public void EnsureDatabaseCreated()
@@ -37,7 +37,7 @@ namespace CtrlCenter.Storage
                 using var connection = new SqliteConnection(_connectionString);
                 connection.Open();
                 using var command = connection.CreateCommand();
-                command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='report_his';";
+                command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='SwitchHisEntity';";
                 using var reader = command.ExecuteReader();
                 if (reader.Read() && reader.GetInt32(0) >= 0)
                 {
@@ -82,7 +82,7 @@ namespace CtrlCenter.Storage
             {
             // 用户表
             @"
-    CREATE TABLE IF NOT EXISTS switch_rpt_his (
+    CREATE TABLE IF NOT EXISTS SwitchHisEntity (
     Id INTEGER PRIMARY KEY AUTOINCREMENT, -- Auto-incrementing ID
     SwitchNo TEXT NOT NULL,               -- Switch number
     MinTime DATETIME NOT NULL,            -- Earliest experiment time
@@ -93,7 +93,7 @@ namespace CtrlCenter.Storage
 
             // 创建索引
             @"
-     CREATE INDEX IF NOT EXISTS idx_SwitchNo ON switch_rpt_his (SwitchNo);",
+     CREATE INDEX IF NOT EXISTS idx_SwitchNo ON SwitchHisEntity (SwitchNo);",
             };
         }
     }

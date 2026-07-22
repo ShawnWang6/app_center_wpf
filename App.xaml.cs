@@ -1,7 +1,9 @@
 
 using CtrlCenter.DataModel;
+using CtrlCenter.Interfaces;
 using CtrlCenter.Storage;
 using CtrlCenter.View;
+using CtrlCenter.ViewModel;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.IO;
@@ -24,50 +26,37 @@ namespace CtrlCenter
                 .AddEnvironmentVariables()
                 .Build();
             Configuration = configuration;
+
+
             var services = new ServiceCollection();
             services.AddSingleton<IConfiguration>(configuration);
-
-            //register ioptionssnapshot(support(hot updates)
-//           services.AddOptions<AppSetting>()
-                //.Bind(configuration.GetSection("appsetting"))
-              //.ValidateDataAnnotations();//option-enable verification
 
             var appSetting = new AppSetting();
             configuration.GetSection("AppSetting").Bind(appSetting);
             services.AddSingleton(appSetting);
 
-            InitializeDatabase();
+            services.AddSingleton<IDbConnFactory, SqliteConnFactory>();
+            services.AddSingleton<ISwitchHisRepos, SwitchHisRepos>();
 
             //registerwindows and ViewModel
-            services.AddTransient<MainWindow>();
+            services.AddTransient<MainViewModel>();
             services.AddTransient<AppMainView>();
-            //services.AddTransient<SettingsViewModel>();
 
             ServiceProvider = services.BuildServiceProvider();
 
-
-
-            //starup mainwindow
-            //var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
+            InitializeDatabase(appSetting.DbOptions);
             var mainWindow = ServiceProvider.GetRequiredService<AppMainView>();
             mainWindow.Show();            
         }
 
-        private void InitializeDatabase()
+        private void InitializeDatabase(DbOptions dbOptions)
         {
-            var dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "report_his.db");                        
-            var initializer = new DabInitializer(dbPath);
+            var initializer = new DabInitializer(dbOptions.ConnString);
             initializer.EnsureDatabaseCreated();
         }
 
         public App()
         {
-            // Load appsettings.json
-            //var builder = new ConfigurationBuilder()
-            //    .SetBasePath(Directory.GetCurrentDirectory())
-            //    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-
-            //Configuration = builder.Build();
         }
     }
 }

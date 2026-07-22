@@ -14,7 +14,7 @@ namespace CtrlCenter.DataModel
         public string FileNameLowerCase { get; set; }
     }
 
-    class RptFile : RptFileBase
+    public class RptFile : RptFileBase
     {
         public string SwitchNo { get; set; }
         public string FilePath { get; set; }
