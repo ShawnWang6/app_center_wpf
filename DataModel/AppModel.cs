@@ -11,7 +11,7 @@ namespace CtrlCenter.DataModel
     {
         HVC,
         ZKC,
-        IR,
+        LRT,
     }
 
     public class AppModel

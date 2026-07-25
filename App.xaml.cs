@@ -7,6 +7,7 @@ using CtrlCenter.ViewModel;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.IO;
+using System.Text;
 using System.Windows;
 
 
@@ -26,8 +27,7 @@ namespace CtrlCenter
                 .AddEnvironmentVariables()
                 .Build();
             Configuration = configuration;
-
-
+            
             var services = new ServiceCollection();
             services.AddSingleton<IConfiguration>(configuration);
 
@@ -43,6 +43,7 @@ namespace CtrlCenter
             services.AddTransient<AppMainView>();
 
             ServiceProvider = services.BuildServiceProvider();
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
             InitializeDatabase(appSetting.DbOptions);
             var mainWindow = ServiceProvider.GetRequiredService<AppMainView>();

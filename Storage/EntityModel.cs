@@ -11,7 +11,7 @@ namespace CtrlCenter.Storage
         /// <summary>
         //  自增ID
         /// </summary>
-        public int Id { get; set; }
+        public long Id { get; set; }
         /// <summary>
         //  开关编号
         /// </summary>

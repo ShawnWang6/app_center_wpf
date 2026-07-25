@@ -1,44 +1,64 @@
+using CtrlCenter.AppRptModel;
 using CtrlCenter.DataModel;
+using CtrlCenter.Storage;
+using DocumentFormat.OpenXml.Drawing.Diagrams;
 using Microsoft.Win32;
 using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 //using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace CtrlCenter
 {
     public static class Util
     {
+        public static readonly Encoding GbkEncoding = Encoding.GetEncoding("GBK");
+
         public static (string, string) GetTxtAndNoFromZkc(string filePath)
         {
             var json = File.ReadAllText(filePath);
-            dynamic data = JsonConvert.DeserializeObject(json);
+            var data = JsonConvert.DeserializeObject<ZkcRptSwitchNoModel>(json);
             return (json, data?.RptCfg?.SwitchNo);
         }
-        public static (string, string) GetTxtAndNoFromIr(string filePath)
+        public static (string, string) GetTxtAndNoFromLrt(string filePath)
         {
             var json = File.ReadAllText(filePath);
-            dynamic data = JsonConvert.DeserializeObject(json);
+            var data = JsonConvert.DeserializeObject<LrtRptSwitchNoModel>(json);
             return (json, data?.DevId);
         }
 
         public static (string, string) GetTxtAndNoFromHvc(string filePath)
         {
-            // Handle CSV file (app3)
-            //TODO  support GBK
-            var lines = File.ReadAllLines(filePath, System.Text.Encoding.ASCII);
+            // Handle CSV file (app3)      
+            var lines = File.ReadAllLines(filePath, GbkEncoding);
             if (lines.Length > 0)
             {
                 return (lines[0], lines[0].Split(',')[0]); // First column is the switch number
             }
             return (null, null);
+        }
+
+        public static SwitchHisEntity BuildSwitchHisEntity(IDictionary<AppType, RptFile> rpts, string switchNo)
+        {
+            var (minTime, maxTime) = rpts.Values.Aggregate(
+                (Min: long.MaxValue, Max: long.MinValue),
+                (acc, f) => (
+                Min: f.TimeStamp < acc.Min ? f.TimeStamp : acc.Min,
+                Max: f.TimeStamp > acc.Max ? f.TimeStamp : acc.Max
+                )
+            );
+            return new SwitchHisEntity
+            {
+                SwitchNo = switchNo,
+                MinTime = ParseYyMmDdHhMmSs(minTime),
+                MaxTime = ParseYyMmDdHhMmSs(maxTime),
+                RptJson = JsonConvert.SerializeObject(rpts)
+            };
         }
 
         public static bool StartApp(string appFullName)
@@ -65,12 +85,14 @@ namespace CtrlCenter
         }
 
         public static DateTime ParseYyMmDdHhMmSs(long input)
-        {
-            // 1. 转换为字符串，并补足为14位（防止首位为0时丢失）
-            string s = input.ToString().PadLeft(14, '0');
-
-            // 2. 解析为 DateTime
-            return DateTime.ParseExact(s, "yyMMddHHmmss", CultureInfo.InvariantCulture);
+        { 
+            DateTime result = DateTime.Now;
+            if (DateTime.TryParseExact($"{input}", "yyMMddHHmmss",
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out result))
+            {
+                Console.WriteLine($"解析成功: {result}");
+            }
+            return result;
         }
 
         public static IEnumerable<string> FindFilesEnumerable(string rootPath, string searchPattern)

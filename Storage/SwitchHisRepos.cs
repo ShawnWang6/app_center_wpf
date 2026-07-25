@@ -31,7 +31,7 @@ namespace CtrlCenter.Storage
         INSERT INTO SwitchHisEntity (SwitchNo, MinTime, MaxTime, RptJson)
         VALUES (@SwitchNo, @MinTime, @MaxTime, @RptJson);
         SELECT last_insert_rowid();";            
-                var id = conn.ExecuteScalar<int>(sql, new
+                var id = conn.ExecuteScalar<long>(sql, new
                 {
                     entity.SwitchNo,
                     entity.MinTime,

@@ -17,6 +17,8 @@ namespace CtrlCenter.Logic
             _hisRepos = hisRepos;
         }
 
+        public IList<SwitchHisEntity> RptHis => _rptHis;
+
         public string LoadRptHis()
         {
             var err = string.Empty;
@@ -42,47 +44,18 @@ namespace CtrlCenter.Logic
             }
             return err;
         }
-        public bool SaveRptfiles(IDictionary<AppType, RptFile> switchRpts)
+        public (bool, string) SaveRptfiles(IDictionary<AppType, RptFile> switchRpts)
         {
-            if (switchRpts.Count < 2)
+            if (switchRpts.Count < 3)
             {
-                return false;
+                return (false, "至少需要3个报表文件");
             }
-
-            // Sort the files by timestamp
-            var sortedFiles = switchRpts.Values.OrderBy(v => v.TimeStamp).ToArray();
-            var switchNo = sortedFiles.First().SwitchNo;
-            var minTime = Util.ParseYyMmDdHhMmSs(sortedFiles.First().TimeStamp);
-            var maxTime = Util.ParseYyMmDdHhMmSs(sortedFiles.Last().TimeStamp);
-
-            // Convert sortedFiles to SwitchRptModel
-            var rptModel = new SwitchRptModel
-            {
-                Files = sortedFiles.Select(rpt => new RptFileBase
-                {
-                    TimeStamp = rpt.TimeStamp,
-                    FileType = rpt.FileType,
-                    Content = rpt.Content,
-                    FileNameLowerCase = rpt.FileNameLowerCase,
-                }).ToArray()
-            };
-
-            // Serialize the SwitchRptModel to JSON
-            var rptJson = JsonConvert.SerializeObject(rptModel);
-
-            // Create a new SwitchHisEntity
-            var switchReport = new SwitchHisEntity
-            {
-                SwitchNo = switchNo,
-                RptJson = rptJson,
-                MinTime = minTime,
-                MaxTime = maxTime
-            };
-
+            var switchNo = switchRpts.Values.FirstOrDefault().SwitchNo;
+            var switchReport = Util.BuildSwitchHisEntity(switchRpts, switchNo);
             var err = _hisRepos.SaveSwitchHis(switchReport);
-            if (string.IsNullOrEmpty(err))
+            if (!string.IsNullOrEmpty(err))
             {
-                return false;
+                return (false, err);
             }
 
             // Add to in-memory collections
@@ -93,7 +66,7 @@ namespace CtrlCenter.Logic
             }
             _switchHis[switchNo].Add(switchReport);
 
-            return true;
+            return (true, string.Empty);
         }
     }
 

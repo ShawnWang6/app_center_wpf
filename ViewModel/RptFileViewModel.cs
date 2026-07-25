@@ -20,7 +20,6 @@ namespace CtrlCenter.ViewModel
         {
             _model = model ?? new RptFile();
         }
-
         // 可以访问原始 Model（如果需要）
         public RptFile Model => _model;
 

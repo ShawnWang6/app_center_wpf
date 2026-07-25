@@ -15,29 +15,29 @@ using System.Windows.Threading;
 namespace CtrlCenter.ViewModel
 {
     public class MainViewModel : INotifyPropertyChanged
-    {
+    {        
         private readonly ISwitchHisRepos _switchHisRepos;
-        private readonly RptFileManager rptFileManager = new RptFileManager();
-        private readonly HashSet<AppViewModel> runningApp = new HashSet<AppViewModel>();        
-        private readonly List<FileSystemWatcher> _watchers = new();
-        private ManagementEventWatcher _appWatcher;
-        private AppModel[] _apps;        
-        private RptHisManager _rptHisManager;
-        private RptFileManager _rptFileManager;
+        private readonly AppModel[] _appModels;
+        private readonly RptFileManager _rptFileManager = new RptFileManager();
+        private readonly HashSet<AppViewModel> _runningApp = new HashSet<AppViewModel>();        
+        private readonly List<FileSystemWatcher> _rptWatchers = new();
+        private readonly ManagementEventWatcher _appWatcher;        
+        private readonly RptHisManager _rptHisManager;
 
-
-
-        public ObservableCollection<AppViewModel> Apps { get; set; }
-
-        public ObservableCollection<RptFileViewModel> RptFiless { get; set; } = new ObservableCollection<RptFileViewModel>();
+        public ObservableCollection<AppViewModel> Apps { get; set; } = new ObservableCollection<AppViewModel>();
+        public ObservableCollection<RptFileViewModel> RptFiles { get; set; } = new ObservableCollection<RptFileViewModel>();
+        public ObservableCollection<RptHisViewModel>  RptHis { get; set; } = new ObservableCollection<RptHisViewModel>();
 
         public ICommand EditAppNameCommand { get; }
         public ICommand SelectAppLocCommand { get; }
         public ICommand DynamicActionCommand { get; }
-
-        private void InitApp()
+        public ICommand MergeRptCommand { get; }
+        public ICommand PreviewMergedRptCommand { get; }
+        public bool CanMergeRpt => RptFiles.Count > 2;
+        public bool CanPreviewMergedRpt => RptFiles.Count > 1;
+        private AppModel[] InitApps()
         {
-            var _apps = new AppModel[]
+            var apps = new AppModel[]
             {
                 new AppModel
                 {
@@ -50,11 +50,11 @@ namespace CtrlCenter.ViewModel
                  },
                  new AppModel
                     {
-                        Type = AppType.IR,
+                        Type = AppType.LRT,
                         Guid = "{28692C18-A1DF-465B-9359-42C6F601243A}_is1",
                         Name = "三通道回路电阻测试仪后台软件",
                         Exe = "IRTest",
-                        GetTxtAndSwitchNo = Util.GetTxtAndNoFromIr,
+                        GetTxtAndSwitchNo = Util.GetTxtAndNoFromLrt,
                         RptPattern = "????????????_ir*.rpt",
                     },
                     new AppModel
@@ -70,13 +70,17 @@ namespace CtrlCenter.ViewModel
             };
 
 
-            _apps[2].FullName = Util.LoadAppPath(_apps[2].Exe);
-            if (!string.IsNullOrEmpty(_apps[2].FullName))
+            apps[2].FullName = Util.LoadAppPath(apps[2].Exe);
+            if (!string.IsNullOrEmpty(apps[2].FullName))
             {
-                _apps[2].Location = Path.GetDirectoryName(_apps[2].FullName);
+                apps[2].Location = Path.GetDirectoryName(apps[2].FullName);
             }
+            return apps;
+        }
 
-            foreach (var app in _apps)
+        private void InitAppViewModels(AppModel[] apps)
+        {
+            foreach (var app in apps)
             {
                 Apps.Add(new AppViewModel(app));
             }
@@ -113,20 +117,13 @@ namespace CtrlCenter.ViewModel
                     Directory.CreateDirectory(app.ScanFolder);
                 }
             }
-
-            
-
-            _appWatcher = MonitorApps(Apps);
-            rptFileManager.RefreshAppRptFiles(_apps.ToList());
-            RefreshSwitchRptFiles();
-            MonitorScanFolders(Apps);
         }
         void RefreshSwitchRptFiles()
         {
-            RptFiless.Clear();
-            foreach (var file in rptFileManager.SwitchFiles.Values)
+            RptFiles.Clear();
+            foreach (var file in _rptFileManager.SwitchFiles.Values)
             {
-                RptFiless.Add(new RptFileViewModel(file));
+                RptFiles.Add(new RptFileViewModel(file));
             }
         }
         ManagementEventWatcher MonitorApps(IList<AppViewModel> apps)
@@ -202,7 +199,7 @@ namespace CtrlCenter.ViewModel
                         Debug.WriteLine($"Error in ProcessNewFile: {ex.Message}");
                     }
                 };
-                _watchers.Add(watcher); // Keep a reference to prevent garbage collection
+                _rptWatchers.Add(watcher); // Keep a reference to prevent garbage collection
             }
         }
         private void ProcessNewFile(AppViewModel model, string filePath)
@@ -212,16 +209,16 @@ namespace CtrlCenter.ViewModel
             if (rpt == null) return;
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
-                rptFileManager.RefreshAppRptFiles(_apps, rpt);
+                _rptFileManager.RefreshAppRptFiles(_appModels, rpt);
                 RefreshSwitchRptFiles();
             }));
         }
         private bool MonitorProcess(AppViewModel app)
         {
             if (app == null || app.Process == null) return false;
-            if (runningApp.Contains(app)) return false;
+            if (_runningApp.Contains(app)) return false;
 
-            runningApp.Add(app);
+            _runningApp.Add(app);
             app.Process.EnableRaisingEvents = true;
             app.Process.Exited += OnProcessExited;
 
@@ -239,13 +236,13 @@ namespace CtrlCenter.ViewModel
 
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
-                var app = runningApp.FirstOrDefault(o => o.Process != null && o.Process.Id == process.Id);
+                var app = _runningApp.FirstOrDefault(o => o.Process != null && o.Process.Id == process.Id);
                 if (app == null || app.Process == null) return;
 
                 app.Process.Exited -= OnProcessExited;
                 app.Process.Dispose();
                 app.Process = null;
-                runningApp.Remove(app);
+                _runningApp.Remove(app);
                 Debug.WriteLine($"[OnProcessExited线程:{Thread.CurrentThread.ManagedThreadId,2}] [{app.Model.Exe}] 已经退出");
             }));
         }
@@ -253,15 +250,38 @@ namespace CtrlCenter.ViewModel
         public MainViewModel(ISwitchHisRepos switchHisRepos)
         {
             _switchHisRepos = switchHisRepos;
-            Apps = new ObservableCollection<AppViewModel>();
+            _rptHisManager = new RptHisManager(_switchHisRepos);
+            _appModels = InitApps();
+            InitAppViewModels(_appModels);
+            _appWatcher = MonitorApps(Apps);
+            _rptFileManager.RefreshAppRptFiles(_appModels.ToList());
+            RefreshSwitchRptFiles();
+            MonitorScanFolders(Apps);
+            _rptHisManager.LoadRptHis(); //TODO init it on app start OnStartup
+
+            //bing mode to view model
+            RptHis.Clear();
+            foreach (var entity in _rptHisManager.RptHis)
+            {
+                RptHis.Add(new RptHisViewModel(entity));
+            }
+
             EditAppNameCommand = new RelayCommand<AppViewModel>(ExecEditAddName);
             SelectAppLocCommand = new RelayCommand<AppViewModel>(ExecuteSelectAppLoc);
             DynamicActionCommand = new RelayCommand<AppViewModel>(ExecuteDynamicAction);
-            _rptHisManager = new RptHisManager(switchHisRepos);
-            InitApp();
-            _rptHisManager.LoadRptHis(); //TODO init it on app start OnStartup
 
-            
+            MergeRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecuteMergeRpt);
+            PreviewMergedRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecutePreviewMergedRpt);
+        }
+        private void ExecuteMergeRpt(ObservableCollection<RptFileViewModel> rptFiles)
+        {
+            var (ok, err) = _rptHisManager.SaveRptfiles(_rptFileManager.SwitchFiles);
+            System.Windows.MessageBox.Show($"合并报表: {(ok ? "成功" : $"失败:{err}")}");
+        }
+
+        private void ExecutePreviewMergedRpt(ObservableCollection<RptFileViewModel> rptFiles)
+        {
+            System.Windows.MessageBox.Show($"预览合并报表: {rptFiles.Count}");
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
