@@ -29,4 +29,10 @@
     <PackageReference Include="System.Management" Version="6.0.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.10" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="rpt_template.xlsx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

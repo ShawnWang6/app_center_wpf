@@ -61,6 +61,29 @@ namespace CtrlCenter
             };
         }
 
+        public static T BuildExcelRptModel<T>(RptFile file) where T : class
+        {
+            T result = default;
+            if (file.FileType == AppType.HVC)
+            {
+                var tokens = file.Content.Split(',');
+                result = new HvcRptModel
+                {
+                    TestTime = ParseYyMmDdHhMmSs(file.TimeStamp).ToLongDateString(),
+                    SwitchNo = tokens.Length > 1 ? tokens[1] : string.Empty,                    
+                    Dc = tokens.Length > 2 ?  tokens[2] : string.Empty,
+                    Ac = tokens.Length > 3 ? tokens[3] : string.Empty,
+                    InsRes = tokens.Length > 4 ? tokens[4] : string.Empty,
+                    Result = tokens.Length > 5 ? tokens[5] : string.Empty,
+                } as T;
+            }
+            else
+            {
+                result = JsonConvert.DeserializeObject<T>(file.Content);
+            }
+            return result;
+        }
+
         public static bool StartApp(string appFullName)
         {
             var startInfo = new ProcessStartInfo

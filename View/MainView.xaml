@@ -16,124 +16,141 @@
     
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <!-- 全局 DataGrid 行样式：控制悬停颜色 -->
+        <Style TargetType="{x:Type DataGridRow}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#E6F0FA"/>
+                    <!-- 淡蓝色 -->
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
-    <DockPanel>
-        <Grid DockPanel.Dock="Top" Background="LightGray" Height="150">
+    
+     <Grid Background="LightGray">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="480" />                
+                <ColumnDefinition Width="500" />
                 <ColumnDefinition Width="5" />                
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <!-- 2. 左侧内容 -->
-            <Grid Grid.Column="0" Background="LightCoral">
-                <!--TextBlock Text="左侧面板" VerticalAlignment="Center" HorizontalAlignment="Center" /-->
-                <DataGrid   AutoGenerateColumns="False" 
-                            CanUserAddRows="False" 
-                            ItemsSource="{Binding Apps}" 
-                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                            >
-                    <DataGrid.ColumnHeaderStyle>
+        
+         
+         <!-- 2. 左侧内容 -->
+         <DockPanel Grid.Column="0">
+            <!-- 2. 左上App DataGrid -->            
+            <DataGrid   AutoGenerateColumns="False" 
+                      DockPanel.Dock="Top"
+                      Height="120"
+                      CanUserAddRows="False" 
+                      ItemsSource="{Binding Apps}" 
+                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <DataGrid.ColumnHeaderStyle>
                         <Style TargetType="{x:Type DataGridColumnHeader}">
                             <Setter Property="HorizontalContentAlignment" Value="Center" />
                             <Setter Property="VerticalContentAlignment" Value="Center" />
                         </Style>
-                    </DataGrid.ColumnHeaderStyle>
-                    <DataGrid.Columns>
+                </DataGrid.ColumnHeaderStyle>
+                <DataGrid.Columns>
                         <DataGridTextColumn 
                             Header="App名称"  
                             Binding="{Binding Name}" 
                             IsReadOnly="True"
                             Width="280" />
 
-                        <DataGridTemplateColumn Header="操作" Width="240" IsReadOnly="True">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                        <Button Content="编辑名称" Margin="2,0" 
-                            IsEnabled="{Binding CanEditName}"
-                            Visibility="{Binding CanEditName, Converter={StaticResource BoolToVisibility}}" 
-                            Command="{Binding DataContext.EditAppNameCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                            CommandParameter="{Binding}" />
-                                        <Button Content="{Binding ActionText}" Margin="2,0"
-                            Command="{Binding DataContext.DynamicActionCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                            CommandParameter="{Binding}" />
-                                        <Button Content="选择报表目录"  Margin="2,0"
-                            IsEnabled="{Binding CanSelectRptLoc}"
-                            Visibility="{Binding CanSelectRptLoc, Converter={StaticResource BoolToVisibility}}" 
-                            Command="{Binding DataContext.SelectRptLocCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                            CommandParameter="{Binding}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="操作" Width="240" IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                <Button Content="编辑名称" Margin="2,0" 
+                                        IsEnabled="{Binding CanEditName}"
+                                        Visibility="{Binding CanEditName, Converter={StaticResource BoolToVisibility}}" 
+                                        Command="{Binding DataContext.EditAppNameCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                        CommandParameter="{Binding}" />
+                                <Button Content="{Binding ActionText}" Margin="2,0"
+                                        Command="{Binding DataContext.DynamicActionCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                        CommandParameter="{Binding}" />
+                                <Button Content="选择报表目录"  Margin="2,0"
+                                        IsEnabled="{Binding CanSelectRptLoc}"
+                                        Visibility="{Binding CanSelectRptLoc, Converter={StaticResource BoolToVisibility}}" 
+                                        Command="{Binding DataContext.SelectRptLocCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                        CommandParameter="{Binding}" />
+                            </StackPanel>
+                        </DataTemplate>
+                     </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                </DataGrid.Columns>
+          </DataGrid>
+            <!-- 2. 左下DockPanel -->
+            <DockPanel>
+                <!-- 2. 左下-上功能按钮 -->
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
+                <Button Content="合并报表" Margin="2,0" 
+                        IsEnabled="{Binding CanMergeRpt}" 
+                        Command="{Binding MergeRptCommand}"
+                        CommandParameter="{Binding RptFiles}" />
+                <Button Content="预览合并报表" Margin="2,0"
+                        IsEnabled="{Binding CanPreviewMergedRpt}" 
+                        Command="{Binding PreviewMergedRptCommand}"
+                        CommandParameter="{Binding RptFiles}" />
+            </StackPanel>
+                <!-- 2. 左下-下最近报表试图 -->
+                <DataGrid   ItemsSource="{Binding RptFiles}" 
+                            IsReadOnly="True"
+                            AutoGenerateColumns="False" 
+                            CanUserAddRows="False"
+                            CanUserDeleteRows="False"
+                            CanUserResizeRows="False"
+                            CanUserSortColumns="True"
+                            HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="报表类型" Binding="{Binding FileType}" Width="75" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="开关编号" Binding="{Binding SwitchNo}" Width="90" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="文件名" Binding="{Binding FileName}" Width="220" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="实验时间" 
+                            Binding="{Binding TimeStamp,StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
+                            Width="180"  IsReadOnly="True"/>
                     </DataGrid.Columns>
                 </DataGrid>
-            </Grid>
-            <!-- GridSplitter -->
-            <GridSplitter Grid.Column="1"
+            </DockPanel>
+        </DockPanel>
+        
+          <!-- 左右分割线 -->
+          <GridSplitter Grid.Column="1"
                HorizontalAlignment="Stretch"
                VerticalAlignment="Stretch"
                Background="Gray"
                ShowsPreview="True" />
 
-            <!-- 4. 右侧内容 -->
-            <Grid Grid.Column="2" Background="LightBlue">
+          <!-- 4. 右侧内容 -->
+          <Grid Grid.Column="2" Background="LightBlue">
                 <!--TextBlock Text="右侧面板" VerticalAlignment="Center" HorizontalAlignment="Center" /-->
                 <DockPanel>
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
-                        <Button Content="合并报表" Margin="2,0" 
-                                IsEnabled="{Binding CanMergeRpt}" 
-                                Command="{Binding MergeRptCommand}"
-                                CommandParameter="{Binding RptFiles}"
-                                />
-                        <Button Content="预览合并报表" Margin="2,0"
-                                IsEnabled="{Binding CanPreviewMergedRpt}" 
-                                Command="{Binding PreviewMergedRptCommand}"
-                                CommandParameter="{Binding RptFiles}"
-                                />
-                    </StackPanel>
-                    <ListView ItemsSource="{Binding RptFiles}">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="报表类型" 
-                            DisplayMemberBinding="{Binding FileType}"
-                            Width="100" />
-                                <GridViewColumn Header="开关编号" 
-                            DisplayMemberBinding="{Binding SwitchNo}" 
-                            Width="90" />
-                                <GridViewColumn Header="文件名" 
-                            DisplayMemberBinding="{Binding FileName}" 
-                            Width="220" />
-                                <GridViewColumn Header="实验时间" 
-                            DisplayMemberBinding="{Binding TimeStamp}" 
-                            Width="150" />
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </DockPanel>
-            </Grid>
-        </Grid>
-        <DockPanel>
-            <ListView ItemsSource="{Binding RptHis}">
-                <ListView.View>
-                    <GridView>
-                        <GridViewColumn Header="开关编号" 
-                                                DisplayMemberBinding="{Binding SwitchNo}" 
-                                                Width="90" />
-                        <GridViewColumn Header="试验开始时间" 
-                                                DisplayMemberBinding="{Binding MinTime}"
-                                                Width="100" />
-                        <GridViewColumn Header="试验结束时间" 
-                                                DisplayMemberBinding="{Binding MaxTime}" 
-                                                Width="220" />
-                        <GridViewColumn Header="合并报表时间" 
-                                                DisplayMemberBinding="{Binding CreateTime}" 
-                                                Width="150" />
-                    </GridView>
-                </ListView.View>
-            </ListView>
-        </DockPanel>
-    </DockPanel>
-   
+                    <Label DockPanel.Dock="Top" Content="历史综合报表" HorizontalAlignment="Center"/>
+                    <DataGrid ItemsSource="{Binding RptHis}" 
+                        IsReadOnly="True"
+                        AutoGenerateColumns="False"
+                        CanUserAddRows="False"
+                        CanUserDeleteRows="False"
+                        CanUserResizeRows="False"
+                        CanUserSortColumns="True"
+                        HeadersVisibility="Column"
+                        GridLinesVisibility="All" >
+                      <DataGrid.Columns>
+                        <DataGridTextColumn Header="开关编号" Binding="{Binding SwitchNo}" Width="90" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="试验开始时间"
+                                            Binding="{Binding MinTime,StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
+                                            Width="180"
+                                            IsReadOnly="True"/>
+                        <!--DataGridTextColumn Header="试验结束时间" Binding="{Binding MaxTime}" Width="220" IsReadOnly="True"/-->
+                        <DataGridTextColumn Header="合并报表时间"
+                                            Binding="{Binding CreateTime,StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
+                                            Width="180" 
+                                            IsReadOnly="True"/>
+                      </DataGrid.Columns>
+                    </DataGrid>                
+            </DockPanel>
+          </Grid>
+     </Grid>   
 </Window>

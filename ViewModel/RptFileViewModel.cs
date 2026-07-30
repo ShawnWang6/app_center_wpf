@@ -39,9 +39,9 @@ namespace CtrlCenter.ViewModel
             get => _model.FileNameLowerCase;
         }
 
-        public long TimeStamp
+        public DateTime TimeStamp
         {
-            get => _model.TimeStamp;
+            get => Util.ParseYyMmDdHhMmSs(_model.TimeStamp);
         }
 
 

@@ -11,6 +11,8 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
+using ClosedXML;
+using CtrlCenter.Excel;
 
 namespace CtrlCenter.ViewModel
 {
@@ -282,6 +284,11 @@ namespace CtrlCenter.ViewModel
         private void ExecutePreviewMergedRpt(ObservableCollection<RptFileViewModel> rptFiles)
         {
             System.Windows.MessageBox.Show($"预览合并报表: {rptFiles.Count}");
+            var rpts = _rptFileManager.SwitchFiles.Values;
+            var rptTemplate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "rpt_template.xlsx");
+            ExcelRptGenerator.GenerateReport(rptTemplate, "rpt.xlsx", _rptFileManager.SwitchFiles);
+            //var switchNo = _rptFileManager.SwitchFiles.Values.FirstOrDefault().SwitchNo;
+            //var switchReport = Util.BuildSwitchHisEntity(_rptFileManager.SwitchFiles, switchNo);
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
