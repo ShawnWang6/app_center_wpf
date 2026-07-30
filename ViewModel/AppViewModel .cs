@@ -1,4 +1,5 @@
 ﻿using CtrlCenter.DataModel;
+using DocumentFormat.OpenXml.EMMA;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -11,6 +12,14 @@ using System.Windows.Threading;
 
 namespace CtrlCenter.ViewModel
 {
+    public enum AppStatus
+    {
+        NotInstalled,
+        StoppedWithLoc,
+        StoppedWithNoLoc,
+        RunningWithLoc,
+        RunningWithNoLoc,
+    }
     public class AppViewModel : INotifyPropertyChanged
     {
         private AppModel _model;
@@ -25,9 +34,36 @@ namespace CtrlCenter.ViewModel
         public AppModel Model => _model;
 
         // 包装属性
+
+        public AppStatus Status
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_model.FullName))
+                {
+                    return AppStatus.NotInstalled;
+                }
+                if  (_model.Type != AppType.HVC)
+                {
+                    return _model.Process == null ? AppStatus.StoppedWithLoc : AppStatus.RunningWithLoc;
+                }
+                
+                if (_model.Process == null)
+                {
+                    return string.IsNullOrEmpty(_model.ScanFolder) ? AppStatus.StoppedWithNoLoc : AppStatus.StoppedWithLoc;                    
+                }
+                else
+                {
+                    return string.IsNullOrEmpty(_model.ScanFolder) ? AppStatus.RunningWithNoLoc : AppStatus.RunningWithNoLoc;
+                }
+            }
+        }
         public string Name
         {
-            get => _model.Name;
+            get
+            {
+                return _model.Name;
+            }
             set
             {
                 if (_model.Name != value)
@@ -37,6 +73,8 @@ namespace CtrlCenter.ViewModel
                 }
             }
         }
+
+        
 
         public bool CanEditName
         {
@@ -104,6 +142,7 @@ namespace CtrlCenter.ViewModel
                 {
                     _model.Process = value;
                     OnPropertyChanged(nameof(ActionText));
+                    OnPropertyChanged(nameof(Status));
                 }
             }
         }
