@@ -6,8 +6,12 @@ using System.Threading.Tasks;
 
 namespace CtrlCenter.Storage
 {
+
     public class SwitchHisEntity
     {
+        public const string Fields = "Id, SwitchNo,MinTime,MinTime,CreateTime,RptExcel,RptJson";
+        public const string MainFields = "Id, SwitchNo,MinTime,MinTime,CreateTime,RptJson";
+
         /// <summary>
         //  自增ID
         /// </summary>
@@ -30,6 +34,10 @@ namespace CtrlCenter.Storage
         /// </summary>
         public DateTime CreateTime { get; set; } = DateTime.Now;
 
+        /// <summary>
+        //  组合报告excel文件
+        /// </summary>
+        public byte[] RptExcel { get; set; }
 
         /// <summary>
         //  组合报告信息，源于SwitchRptModel对象的Json序列化

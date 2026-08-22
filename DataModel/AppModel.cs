@@ -22,7 +22,7 @@ namespace CtrlCenter.DataModel
         public string Exe { get; set; }
         public string Desc { get; set; }
         public string RptPattern { get; set; }
-        public string ScanFolder { get; set; }
+        public string RptFolder { get; set; }
         public string Location { get; set; }
         public string FullName { get; set; }
         public Process Process { get; set; }

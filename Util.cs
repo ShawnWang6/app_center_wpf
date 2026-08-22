@@ -2,8 +2,10 @@ using CtrlCenter.AppRptModel;
 using CtrlCenter.DataModel;
 using CtrlCenter.Storage;
 using DocumentFormat.OpenXml.Drawing.Diagrams;
+using DocumentFormat.OpenXml.Office2013.Excel;
 using Microsoft.Win32;
 using Newtonsoft.Json;
+using Serilog;
 using System.ComponentModel;
 //using System.Data;
 using System.Diagnostics;
@@ -172,7 +174,7 @@ namespace CtrlCenter
             RegistryView targetView = GetTargetView();
             using (var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, targetView))
             {
-                using (RegistryKey subKey = baseKey.CreateSubKey(@"SOFTWARE\ZGKJ\AppCenter"))
+                using (RegistryKey subKey = baseKey.CreateSubKey(AppRegKey))
                 {
                     subKey?.SetValue(name, path, RegistryValueKind.String);
                 }
@@ -185,10 +187,115 @@ namespace CtrlCenter
             RegistryView targetView = GetTargetView();
             using (var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, targetView))
             {
-                using (RegistryKey subKey = baseKey.OpenSubKey(@"SOFTWARE\ZGKJ\AppCenter"))
+                using (RegistryKey subKey = baseKey.OpenSubKey(AppRegKey))
                 {
                     return subKey?.GetValue(name) as string;
                 }
+            }
+        }
+        public static readonly string AppRegKey = @"SOFTWARE\ZhengGuan\ReportMaker";
+        public static int AppRegGetInt(string key, int valueDefault)
+        {
+            string path = string.Empty;
+            RegistryView targetView = GetTargetView();
+            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, targetView);
+            using RegistryKey subKey = baseKey.OpenSubKey(AppRegKey);
+            var value = subKey.GetValue(key);
+            if (subKey == null) { return valueDefault; }            
+            int result = valueDefault;
+            if (int.TryParse($"{value}", out result))
+            {
+                //TODO log more
+            }
+            return result;
+        }
+        public static bool AppRegSetInt(string name, int value)
+        {
+            RegistryView targetView = GetTargetView();
+            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, targetView);
+            using RegistryKey subKey = baseKey.CreateSubKey(AppRegKey);
+            if (subKey == null) { return false; }
+            subKey.SetValue(name, value, RegistryValueKind.DWord);
+            return true;
+        }
+        // 泛型读取方法
+        public static T AppRegGet<T>(string key, T valueDefault)
+        {
+            RegistryView targetView = GetTargetView();
+            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, targetView);
+            using RegistryKey subKey = baseKey.CreateSubKey(AppRegKey);
+            if (subKey == null) { return valueDefault; }
+            object rawValue = subKey.GetValue(key);
+            if (rawValue == null) { return valueDefault; }
+            return ConvertValue<T>(rawValue, valueDefault);
+        }
+
+        // 泛型写入方法
+        public static bool AppRegSet<T>(string name, T value)
+        {
+            RegistryView targetView = GetTargetView();
+            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, targetView);
+            using RegistryKey subKey = baseKey.CreateSubKey(AppRegKey);
+            if (subKey == null) { return false; }
+
+            RegistryValueKind kind = GetRegistryValueKind(value);
+            subKey.SetValue(name, value, kind);
+            return true;
+        }
+
+        // 类型转换辅助方法
+        private static T ConvertValueOld<T>(object rawValue, T defaultValue)
+        {
+            Type targetType = typeof(T);
+
+            if (targetType == typeof(int))
+            {
+                if (rawValue is int intValue)
+                    return (T)(object)intValue;
+                if (int.TryParse(rawValue.ToString(), out int result))
+                    return (T)(object)result;
+            }
+            else if (targetType == typeof(long))
+            {
+                if (rawValue is long longValue)
+                    return (T)(object)longValue;
+                if (rawValue is int intValue)
+                    return (T)(object)(long)intValue;
+                if (long.TryParse(rawValue.ToString(), out long result))
+                    return (T)(object)result;
+            }
+            else if (targetType == typeof(string))
+            {
+                return (T)(object)rawValue.ToString();
+            }
+
+            // 不支持的类型或转换失败，返回默认值
+            return defaultValue;
+        }
+
+        // 获取 RegistryValueKind
+        private static RegistryValueKind GetRegistryValueKind<T>(T value)
+        {
+            Type type = typeof(T);
+
+            if (type == typeof(int))
+                return RegistryValueKind.DWord;
+            else if (type == typeof(long))
+                return RegistryValueKind.QWord;
+            else if (type == typeof(string))
+                return RegistryValueKind.String;
+            else
+                throw new NotSupportedException($"Type {type.Name} is not supported");
+        }
+        private static T ConvertValue<T>(object rawValue, T defaultValue)
+        {
+            try
+            {
+                return (T)Convert.ChangeType(rawValue, typeof(T));
+            }
+            catch
+            {
+                return defaultValue;
             }
         }
 
@@ -245,7 +352,7 @@ namespace CtrlCenter
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"WMI查询进程 {processId} 路径失败: {ex.Message}");
+                Log.Error($"WMI查询进程 {processId} 路径失败: {ex.Message}");
             }
 
             return null;
@@ -264,7 +371,7 @@ namespace CtrlCenter
             string targetPath = Path.GetFullPath(path).ToLowerInvariant();
             DateTime from = DateTime.Now;
             var processes = Process.GetProcesses();
-            Debug.WriteLine($"GetProcesses consum {(DateTime.Now - from).TotalSeconds}");
+            Log.Debug($"GetProcesses consum {(DateTime.Now - from).TotalSeconds}");
             var ret = Process.GetProcesses().FirstOrDefault(p =>
             {
                 try
@@ -399,7 +506,7 @@ namespace CtrlCenter
                     if (close)
                     {
                         var popWnd = GetLastActivePopup(hWnd);
-                        Debug.WriteLine($"活动窗口是主窗口: {(popWnd == hWnd)}");
+                        Log.Debug($"活动窗口是主窗口: {(popWnd == hWnd)}");
                         if (popWnd == hWnd)
                         {
                             PostMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
@@ -412,6 +519,31 @@ namespace CtrlCenter
             return false;
         }
 
+        public static bool MinimizeOrRestoreProcessWindow(Process process)
+        {
+            if (process == null || process.MainWindowHandle == IntPtr.Zero)
+            {
+                Log.Debug("指定的进程无效或没有主窗口。");
+                return false;
+            }
+
+            IntPtr hWnd = process.MainWindowHandle;
+
+            // 检查窗口是否最小化
+            if (IsIconic(hWnd))
+            {
+                // 如果最小化，则恢复窗口
+                ShowWindow(hWnd, 9); // SW_RESTORE
+                Log.Debug($"恢复了进程 {process.ProcessName} 的主窗口。");
+            }
+            else
+            {
+                // 如果未最小化，则最小化窗口
+                ShowWindow(hWnd, 6); // SW_MINIMIZE
+                Log.Debug($"最小化了进程 {process.ProcessName} 的主窗口。");
+            }
+            return true;
+        }
         public static IntPtr GetFocusedWindowOfProcess(Process process)
         {
             if (process == null) throw new ArgumentNullException(nameof(process));

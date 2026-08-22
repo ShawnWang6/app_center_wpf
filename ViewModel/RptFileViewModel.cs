@@ -14,11 +14,13 @@ namespace CtrlCenter.ViewModel
     public class RptFileViewModel : INotifyPropertyChanged
     {
         private RptFile _model;
+        private bool  _merged;
 
         // 构造函数：传入 Model 实例
-        public RptFileViewModel(RptFile model)
+        public RptFileViewModel(RptFile model, bool merged)
         {
             _model = model ?? new RptFile();
+            _merged = merged;
         }
         // 可以访问原始 Model（如果需要）
         public RptFile Model => _model;
@@ -36,7 +38,7 @@ namespace CtrlCenter.ViewModel
 
         public string FileName
         {
-            get => _model.FileNameLowerCase;
+            get => _merged ? $"{_model.FileNameLowerCase}(已合并)" : _model.FileNameLowerCase;
         }
 
         public DateTime TimeStamp

@@ -1,18 +1,21 @@
-﻿using CtrlCenter.DataModel;
+﻿using ClosedXML;
+using CtrlCenter.DataModel;
+using CtrlCenter.Excel;
 using CtrlCenter.Interfaces;
 using CtrlCenter.Logic;
 using CtrlCenter.Storage;
+using DocumentFormat.OpenXml.EMMA;
+using Serilog;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Management;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
-using ClosedXML;
-using CtrlCenter.Excel;
 
 namespace CtrlCenter.ViewModel
 {
@@ -20,11 +23,14 @@ namespace CtrlCenter.ViewModel
     {        
         private readonly ISwitchHisRepos _switchHisRepos;
         private readonly AppModel[] _appModels;
-        private readonly RptFileManager _rptFileManager = new RptFileManager();
+        private readonly RptFileManager _rptFileManager;
         private readonly HashSet<AppViewModel> _runningApp = new HashSet<AppViewModel>();        
-        private readonly List<FileSystemWatcher> _rptWatchers = new();
+        private readonly IDictionary<AppType, FileSystemWatcher> _rptWatchers = new Dictionary<AppType, FileSystemWatcher>();
         private readonly ManagementEventWatcher _appWatcher;        
         private readonly RptHisManager _rptHisManager;
+        private readonly AppSetting _appSetting;
+        public bool TopMost => _appSetting.TopMost;
+        public bool ShowRptName => false;
 
         public ObservableCollection<AppViewModel> Apps { get; set; } = new ObservableCollection<AppViewModel>();
         public ObservableCollection<RptFileViewModel> RptFiles { get; set; } = new ObservableCollection<RptFileViewModel>();
@@ -35,7 +41,8 @@ namespace CtrlCenter.ViewModel
         public ICommand DynamicActionCommand { get; }
         public ICommand MergeRptCommand { get; }
         public ICommand PreviewMergedRptCommand { get; }
-        public bool CanMergeRpt => RptFiles.Count > 2;
+        public ICommand RefreshRptCommand { get; }
+        public bool CanMergeRpt => RptFiles.Count >= 2;
         public bool CanPreviewMergedRpt => RptFiles.Count > 1;
         private AppModel[] InitApps()
         {
@@ -104,28 +111,35 @@ namespace CtrlCenter.ViewModel
                 }
 
                 if (string.IsNullOrEmpty(app.Guid))
-                {
-                    // app3 requires user to set ScanFolder
-                    app.ScanFolder = Util.LoadAppPath(app.Exe + "_ScanFolder");
+                {   
+                    app.RptFolder = Util.LoadAppPath(model.RptFolderRegKey);
                 }
                 else if (!string.IsNullOrEmpty(app.Location))
                 {
-                    app.ScanFolder = Path.Combine(app.Location, "sync");
+                    app.RptFolder = Path.Combine(app.Location, "sync");
                 }
 
                 // Ensure ScanFolder exists
-                if (!string.IsNullOrEmpty(app.ScanFolder) && !Directory.Exists(app.ScanFolder))
+                if (!string.IsNullOrEmpty(app.RptFolder) && !Directory.Exists(app.RptFolder))
                 {
-                    Directory.CreateDirectory(app.ScanFolder);
+                    Directory.CreateDirectory(app.RptFolder);
                 }
             }
         }
+        IDictionary<string, DateTime> _latestMergedRpts = new Dictionary<string, DateTime>();
+        /// <summary>
+        //  1. 启动时刷新
+        //  2. 手动刷新
+        //  3. 扫描到新手动刷新
+        //  4. 合并后缓存ScanRptsMaxTimeSpan时间内的文件，若再显示则添加提示(已合并)
+        /// </summary>
         void RefreshSwitchRptFiles()
         {
             RptFiles.Clear();
             foreach (var file in _rptFileManager.SwitchFiles.Values)
             {
-                RptFiles.Add(new RptFileViewModel(file));
+                bool merged = _latestMergedRpts.ContainsKey(file.FileNameLowerCase);
+                RptFiles.Add(new RptFileViewModel(file, merged));
             }
         }
         ManagementEventWatcher MonitorApps(IList<AppViewModel> apps)
@@ -179,30 +193,54 @@ namespace CtrlCenter.ViewModel
         {
             foreach (var app in apps)
             {
-                if (string.IsNullOrEmpty(app.ScanFolder)) continue;
+                if (string.IsNullOrEmpty(app.RptFolder)) continue;
 
-                Debug.WriteLine($"Monitoring directory: {app.ScanFolder}");
-                var watcher = new FileSystemWatcher(app.ScanFolder)
+                if (_rptWatchers.ContainsKey(app.Model.Type)) continue;
+                Log.Information($"Monitor directory: {app.RptFolder}");
+                var watcher = new FileSystemWatcher(app.RptFolder)
                 {
                     NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
                     Filter = app.RptPattern.Remove(0, app.RptPattern.Length - 5),
-                    EnableRaisingEvents = true
+                    EnableRaisingEvents = true,
                 };
 
-                watcher.Created += (s, e) =>
-                {
-                    try
-                    {
-                        Debug.WriteLine($"File created: {e.FullPath}");
-                        ProcessNewFile(app, e.FullPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error in ProcessNewFile: {ex.Message}");
-                    }
-                };
-                _rptWatchers.Add(watcher); // Keep a reference to prevent garbage collection
+                
+                watcher.Created += (s, e) => OnFileCreated(app, e);
+                watcher.Changed += (s, e) => OnFileChanged(app, e);
+                watcher.Error += OnWatcherError;
+                // Keep a reference to prevent garbage collection
+                _rptWatchers[app.Model.Type] = watcher;
             }
+        }
+        private void OnFileCreated(AppViewModel model, FileSystemEventArgs e)
+        {
+            // 延迟一下，等待文件写入完成
+            Log.Information($"检测到[{model.Name}]创建报表文件: {Path.GetFileName(e.FullPath)}");
+        }
+
+        private void OnFileChanged(AppViewModel model, FileSystemEventArgs e)
+        {
+            //文件修改时，Changed 事件可能会触发多次（因为写入过程中多次写磁盘），
+            //建议在事件处理中加入防抖逻辑（比如延迟 500ms 再处理）。
+            // 延迟一下，等待文件写入完成
+            Log.Information($"检测到[{model.Name}]报表被修改: {Path.GetFileName(e.FullPath)}");
+            Task.Delay(500).ContinueWith(_ =>
+            {
+                try
+                {
+                    Log.Information($"File changed: {e.FullPath}");
+                    ProcessNewFile(model, e.FullPath);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Error in Process changed file[{e.FullPath}]: {ex.Message}");
+                }
+            });
+        }
+
+        private void OnWatcherError(object sender, ErrorEventArgs e)
+        {
+            Log.Error($"❌ 监控错误: {e.GetException().Message}");
         }
         private void ProcessNewFile(AppViewModel model, string filePath)
         {
@@ -245,14 +283,16 @@ namespace CtrlCenter.ViewModel
                 app.Process.Dispose();
                 app.Process = null;
                 _runningApp.Remove(app);
-                Debug.WriteLine($"[OnProcessExited线程:{Thread.CurrentThread.ManagedThreadId,2}] [{app.Model.Exe}] 已经退出");
+                Log.Warning($"[OnProcessExited线程:{Thread.CurrentThread.ManagedThreadId,2}] [{app.Model.Exe}] 已经退出");
             }));
         }
 
-        public MainViewModel(ISwitchHisRepos switchHisRepos)
+        public MainViewModel(ISwitchHisRepos switchHisRepos, AppSetting appSetting)
         {
             _switchHisRepos = switchHisRepos;
-            _rptHisManager = new RptHisManager(_switchHisRepos);
+            _appSetting = appSetting;
+            _rptFileManager = new RptFileManager(appSetting);
+            _rptHisManager = new RptHisManager(_switchHisRepos, appSetting);
             _appModels = InitApps();
             InitAppViewModels(_appModels);
             _appWatcher = MonitorApps(Apps);
@@ -274,10 +314,25 @@ namespace CtrlCenter.ViewModel
 
             MergeRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecuteMergeRpt);
             PreviewMergedRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecutePreviewMergedRpt);
+            RefreshRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecuteRefreshRptCommand);
         }
         private void ExecuteMergeRpt(ObservableCollection<RptFileViewModel> rptFiles)
         {
-            var (ok, err) = _rptHisManager.SaveRptfiles(_rptFileManager.SwitchFiles);
+            var (ok, err, entity) = _rptHisManager.SaveRptfiles(_rptFileManager.SwitchFiles);
+            if (ok)
+            {
+                //更新UI合并历史
+                RptHis.Add(new RptHisViewModel(entity));
+
+                //标记已合并，缓存当前报表文件名和时间戳
+                foreach (var rpt in _rptFileManager.SwitchFiles.Values)
+                {
+                    _latestMergedRpts[rpt.FileNameLowerCase] = DateTime.Now;
+                }
+                //刷新列表，标记已合并
+                RefreshSwitchRptFiles();
+
+            }
             System.Windows.MessageBox.Show($"合并报表: {(ok ? "成功" : $"失败:{err}")}");
         }
 
@@ -289,6 +344,11 @@ namespace CtrlCenter.ViewModel
             ExcelRptGenerator.GenerateReport(rptTemplate, "rpt.xlsx", _rptFileManager.SwitchFiles);
             //var switchNo = _rptFileManager.SwitchFiles.Values.FirstOrDefault().SwitchNo;
             //var switchReport = Util.BuildSwitchHisEntity(_rptFileManager.SwitchFiles, switchNo);
+        }
+
+        private void ExecuteRefreshRptCommand(ObservableCollection<RptFileViewModel> rptFiles)
+        {
+            RefreshSwitchRptFiles();
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -304,20 +364,80 @@ namespace CtrlCenter.ViewModel
             System.Windows.MessageBox.Show($"编辑: {data.Name}");
         }
 
-        private void ExecuteSelectAppLoc(AppViewModel data)
+        private void ExecuteSelectAppLoc(AppViewModel model)
         {
-            // 删除逻辑
-            System.Windows.MessageBox.Show($"删除: {data.Name}");
+            // 设置报表输出位置
+            //System.Windows.MessageBox.Show($"设置{model.Name}报表文件夹");
+            var app = model.Model;
+            string folder;
+            using var dlg = new FolderBrowserDialog();
+            dlg.UseDescriptionForTitle = true;
+            dlg.Description = $"选择{model.Name}报表文件夹";
+            dlg.RootFolder = Environment.SpecialFolder.MyComputer;
+            dlg.ShowNewFolderButton = false;
+            if (dlg.ShowDialog() != DialogResult.OK) return;
+
+            folder = dlg.SelectedPath;
+            if (string.IsNullOrEmpty(folder)) return;
+            // 不区分大小写比较，返回 bool
+            if (string.Equals(app.RptFolder, folder, StringComparison.OrdinalIgnoreCase))
+            {
+                System.Windows.MessageBox.Show($"文件夹未改变");
+                return;
+            }
+            
+            //保存至内存
+            app.RptFolder = folder;
+            //保存至注册表
+            Util.SaveAppPath(model.RptFolderRegKey, folder);
+
+            //切换监控目录
+            if (_rptWatchers.TryGetValue(app.Type, out var watcher))
+            {
+                try
+                {
+                    if (watcher.EnableRaisingEvents)
+                    {
+                        watcher.EnableRaisingEvents = false;
+                    }
+
+                    // 2. 更新监控路径
+                    Log.Information($"Update rpt folder from {watcher.Path} to {folder}");
+                    watcher.Path = folder;
+
+                    // 3. 重新设置其他属性（如果需要）
+                    //watcher.IncludeSubdirectories = true;
+                    //watcher.Filter = "*.*";
+
+                    // 4. 启动新监控
+                    watcher.EnableRaisingEvents = true;
+                }
+                catch(Exception ex)
+                {
+                    Log.Error($"Remonitor rpt path failed: {ex}");
+                }
+            }
+            else
+            {
+                //启动新的monitor,已存在的不会重新创建
+                MonitorScanFolders(Apps);
+            }
         }
+
 
         private void ExecuteDynamicAction(AppViewModel model)
         {
             var app = model.Model;
             if (app == null) return;
-            System.Windows.MessageBox.Show($"{app.ActionText} : {app.Name}");
+            //System.Windows.MessageBox.Show($"{app.ActionText} : {app.Name}");
             if (app.Process != null)
             {
-                WindowActivator.ActivateWindow(app.Process, true);
+                var close = model.ActionText.Contains("关闭");
+                WindowActivator.ActivateWindow(app.Process, close);
+                if (!close)
+                {
+                    WindowActivator.MinimizeOrRestoreProcessWindow(Process.GetCurrentProcess());
+                }
             }
             else if (!string.IsNullOrEmpty(app.FullName))
             {
@@ -338,7 +458,7 @@ namespace CtrlCenter.ViewModel
                 dlg.Description = "选择程序的安装目录";
                 dlg.RootFolder = Environment.SpecialFolder.MyComputer;
                 dlg.ShowNewFolderButton = false;
-                if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                if (dlg.ShowDialog() == DialogResult.OK)
                 {
                     folder = dlg.SelectedPath;
                 }

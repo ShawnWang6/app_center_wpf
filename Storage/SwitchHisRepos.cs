@@ -49,7 +49,7 @@ namespace CtrlCenter.Storage
         public IList<SwitchHisEntity> GetSwitchHis(string switchNo, DateTime? startTime, DateTime? minTime)
         {
             // Build the SQL query
-            var query = new StringBuilder("SELECT * FROM SwitchHisEntity WHERE 1=1");
+            var query = new StringBuilder($"SELECT {SwitchHisEntity.MainFields} FROM SwitchHisEntity WHERE 1=1");
             var parameters = new DynamicParameters();
 
             // Add conditions based on the provided parameters
@@ -71,7 +71,29 @@ namespace CtrlCenter.Storage
 
             using var connection = DbConnFactory.CreateConnection();
             //var apps = connection.Query<App>(sql, new { Status = status, Version = version });
-            return connection.Query<SwitchHisEntity>(query.ToString()).ToList();
+            return connection.Query<SwitchHisEntity>(query.ToString(), parameters).ToList();
+        }
+
+        byte[] ISwitchHisRepos.GetExcel(long hisId)
+        {
+            using var conn = DbConnFactory.CreateConnection();
+            return conn.Query<byte[]>($"SELECT RptExcel FROM SwitchHisEntity WHERE Id={hisId}").FirstOrDefault();
+        }
+
+        string ISwitchHisRepos.SetExcel(long hisId, byte[] rptExcel)
+        {
+            string err = string.Empty;
+            try
+            {
+                using var conn = DbConnFactory.CreateConnection();
+                string sql = "UPDATE SwitchHisEntity SET RptExcel = @RptExcel WHERE id = @Id;";
+                int affectedRows = conn.Execute(sql, new { RptExcel = rptExcel, Id = hisId });
+            }
+            catch (Exception ex)
+            {
+                err = ex.Message;
+            }
+            return err;
         }
     }
 }

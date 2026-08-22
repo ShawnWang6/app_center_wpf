@@ -6,8 +6,12 @@ using CtrlCenter.View;
 using CtrlCenter.ViewModel;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 
 
@@ -17,9 +21,12 @@ namespace CtrlCenter
     {
         public static IConfiguration Configuration { get; private set; }
         public static IServiceProvider ServiceProvider { get; private set; }
+        public static LoggingLevelSwitch FileLevelSwitch { get; } = new LoggingLevelSwitch(LogEventLevel.Information);
+        public static LoggingLevelSwitch DebugLevelSwitch { get; } = new LoggingLevelSwitch(LogEventLevel.Debug);
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+
 
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
@@ -27,6 +34,19 @@ namespace CtrlCenter
                 .AddEnvironmentVariables()
                 .Build();
             Configuration = configuration;
+
+            var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "OnrRpt-.log");
+            Log.Logger = new LoggerConfiguration()                
+                .MinimumLevel.Debug()
+                .WriteTo.Logger(lc => lc
+                    .MinimumLevel.ControlledBy(FileLevelSwitch)
+                    .WriteTo.File(logPath,
+                              rollingInterval: RollingInterval.Month,
+                              outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}"))
+                .WriteTo.Logger(lc => lc
+                    .MinimumLevel.ControlledBy(DebugLevelSwitch)
+                    .WriteTo.Debug(outputTemplate: "[{Level:u3}] {Message:lj}{NewLine}{Exception}"))            
+                .CreateLogger();
             
             var services = new ServiceCollection();
             services.AddSingleton<IConfiguration>(configuration);

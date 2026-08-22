@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:CtrlCenter.ViewModel"         
         mc:Ignorable="d"
-        Title="App报表综合管理" Height="600" Width="1023"
+        Title="App报表综合管理" Height="600" Width="1024"
         WindowStartupLocation="CenterScreen"
         FontFamily="Microsoft YaHei"
         FontSize="16">
@@ -100,24 +100,6 @@
                                 <!-- <Setter Property="HorizontalAlignment" Value="Center" /> -->
                                 <!-- 设置默认背景为透明，否则触发器可能无法覆盖 -->
                                 <Setter Property="Background" Value="Transparent" />
-
-                                <!--Style.Triggers>                                    
-                                    <DataTrigger Binding="{Binding Status}" Value="NotInstalled">
-                                        <Setter Property="Background" Value="Red" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Status}" Value="StoppedWithLoc">
-                                        <Setter Property="Background" Value="Orange" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Status}" Value="StoppedWithLoc">
-                                        <Setter Property="Background" Value="Orange" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Status}" Value="RunningWithNoLoc">
-                                        <Setter Property="Background" Value="Green" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Status}" Value="RunningWithLoc">
-                                        <Setter Property="Background" Value="Green" />
-                                    </DataTrigger>
-                                </Style.Triggers-->
                             </Style>
                         </DataGridTextColumn.ElementStyle>                        
                     </DataGridTextColumn>
@@ -137,7 +119,7 @@
                                 <Button Content="选择报表目录"  Margin="2,0"
                                         IsEnabled="{Binding CanSelectRptLoc}"
                                         Visibility="{Binding CanSelectRptLoc, Converter={StaticResource BoolToVisibility}}" 
-                                        Command="{Binding DataContext.SelectRptLocCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                        Command="{Binding DataContext.SelectAppLocCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                         CommandParameter="{Binding}" />
                             </StackPanel>
                         </DataTemplate>
@@ -149,13 +131,17 @@
             <DockPanel>
                 <!-- 2. 左下-上功能按钮 -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
-                <Button Content="合并报表" Margin="2,0" 
+                    <Label Content="最新开关试验报表" Margin="4,0" VerticalAlignment="Center"/>
+                    <Button Content=" 合并报表 " Margin="4,0" 
                         IsEnabled="{Binding CanMergeRpt}" 
                         Command="{Binding MergeRptCommand}"
                         CommandParameter="{Binding RptFiles}" />
-                <Button Content="预览合并报表" Margin="2,0"
+                <Button Content=" 预览合并报表 " Margin="4,0"
                         IsEnabled="{Binding CanPreviewMergedRpt}" 
                         Command="{Binding PreviewMergedRptCommand}"
+                        CommandParameter="{Binding RptFiles}" />
+                <Button Content=" 刷新报表 " Margin="4,0"                        
+                        Command="{Binding RefreshRptCommand}"
                         CommandParameter="{Binding RptFiles}" />
             </StackPanel>
                 <!-- 2. 左下-下最近报表试图 -->
@@ -170,8 +156,8 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="报表类型" Binding="{Binding FileType}" Width="75" IsReadOnly="True"/>
                         <DataGridTextColumn Header="开关编号" Binding="{Binding SwitchNo}" Width="90" IsReadOnly="True"/>
-                        <DataGridTextColumn Header="文件名" Binding="{Binding FileName}" Width="220" IsReadOnly="True"/>
-                        <DataGridTextColumn Header="实验时间" 
+                        <DataGridTextColumn x:Name="FileColumn"  Header="文件名" Binding="{Binding FileName}" Width="220" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="试验时间" 
                             Binding="{Binding TimeStamp,StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
                             Width="180"  IsReadOnly="True"/>
                     </DataGrid.Columns>

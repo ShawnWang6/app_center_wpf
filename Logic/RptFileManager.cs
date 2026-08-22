@@ -2,6 +2,7 @@
 using CtrlCenter.Interfaces;
 using CtrlCenter.Storage;
 using Newtonsoft.Json;
+using Serilog;
 using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -10,6 +11,13 @@ namespace CtrlCenter.Logic
 {
     class RptFileManager
     {
+        private readonly AppSetting _appSetting;
+
+        public RptFileManager(AppSetting appSetting)
+        {
+            _appSetting = appSetting;
+        }
+
         /// <summary>
         //  最近做了试验的报表文件信息
         /// </summary>
@@ -18,14 +26,6 @@ namespace CtrlCenter.Logic
         //  和Master开关编号一致的最新的报表文件信息
         /// </summary>
         public Dictionary<AppType, RptFile> SwitchFiles { get; set; } = new Dictionary<AppType, RptFile>();
-
-
-        /// <summary>
-        //  仅描扫描改时间戳据当前时间最大的时间间隔(单位秒), 默认只扫描最近5分钟的报表文件
-        /// </summary>
-        public long ScanFileMaxTimeSpanSec { get; set; } = 300;
-
-
 
         /// <summary>
         //  扫描到的ScanFileTimeStampMin之内的文件，key为小写文件名(不含路径)
@@ -43,21 +43,21 @@ namespace CtrlCenter.Logic
             // Scan each app's ScanFolder
             foreach (var app in apps)
             {
-                if (string.IsNullOrEmpty(app.ScanFolder) || !Directory.Exists(app.ScanFolder))
+                if (string.IsNullOrEmpty(app.RptFolder) || !Directory.Exists(app.RptFolder))
                 {
-                    Debug.WriteLine($"ScanFolder does not exist for app: {app.Name}");
+                    Log.Warning($"ScanFolder does not exist for app: {app.Name}");
                     continue;
                 }
 
                 // Get all files in the ScanFolder
-                var files = Directory.GetFiles(app.ScanFolder, app.RptPattern);
+                var files = Directory.GetFiles(app.RptFolder, app.RptPattern);
                 foreach (var file in files)
                 {
                     var fileName = Path.GetFileName(file);
                     fileName = fileName.ToLower();
                     var fileTimestamp = GetTimestampFromFileName(fileName);
                     if (fileTimestamp == null) continue;
-                    if (currentTimestamp - fileTimestamp.Value > ScanFileMaxTimeSpanSec)
+                    if (currentTimestamp - fileTimestamp.Value > _appSetting.ScanFileMaxTimeSpanSec)
                     {
                         continue;
                     }
@@ -99,7 +99,7 @@ namespace CtrlCenter.Logic
             else
             {
                 long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                if (currentTimestamp - rpt.TimeStamp > ScanFileMaxTimeSpanSec)
+                if (currentTimestamp - rpt.TimeStamp > _appSetting.ScanFileMaxTimeSpanSec)
                 {
                     return;
                 }
@@ -121,7 +121,7 @@ namespace CtrlCenter.Logic
             else if (Master.TimeStamp != newMaster.TimeStamp || Master.FilePath != newMaster.FilePath)
             {
                 Master = newMaster;
-                Debug.WriteLine($"Master updated: {Master.FilePath}");
+                Log.Information($"Master updated: {Master.FilePath}");
             }
 
             if (Master == null)
@@ -147,7 +147,7 @@ namespace CtrlCenter.Logic
         /// <param name="fileName">The file name to extract the timestamp from.</param>
         /// <returns>The timestamp as a long, or null if invalid.</returns>
 
-        private static readonly Regex _timestampRegex = new Regex(@"^(?<timestamp>\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])[01]\d[0-5]\d[0-5]\d).*\.(?:rpt|csv)$", RegexOptions.Compiled);
+        private static readonly Regex _timestampRegex = new Regex(@"^(?<timestamp>\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{6}).*\.(?:rpt|csv)$", RegexOptions.Compiled);
         private static long? GetTimestampFromFileName(string fileName)
         {
             Match match = _timestampRegex.Match(fileName);
@@ -165,13 +165,13 @@ namespace CtrlCenter.Logic
             Match match = _timestampRegex.Match(fileName);
             if (!match.Success)
             {
-                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{appName}报表文件: {filePath}");
+                Log.Warning($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{appName}报表文件: {filePath}");
                 return null;
             }
             var (content, switchNo) = getTxtAndSwitchNo(filePath);
             if (string.IsNullOrEmpty(switchNo))
             {
-                Debug.WriteLine($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{appName} 文件{filePath}的开关编号");
+                Log.Warning($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{appName} 文件{filePath}的开关编号");
                 return null;
             }
             var fileTimestamp = GetTimestampFromFileName(fileName);

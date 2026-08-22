@@ -88,6 +88,7 @@ namespace CtrlCenter.Storage
     MinTime DATETIME NOT NULL,            -- Earliest experiment time
     MaxTime DATETIME NOT NULL,            -- Latest experiment time
     CreateTime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Creation time
+    RptExcel BLOB,
     RptJson TEXT                          -- JSON serialized report information
     );",
 

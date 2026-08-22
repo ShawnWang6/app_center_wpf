@@ -50,11 +50,11 @@ namespace CtrlCenter.ViewModel
                 
                 if (_model.Process == null)
                 {
-                    return string.IsNullOrEmpty(_model.ScanFolder) ? AppStatus.StoppedWithNoLoc : AppStatus.StoppedWithLoc;                    
+                    return string.IsNullOrEmpty(_model.RptFolder) ? AppStatus.StoppedWithNoLoc : AppStatus.StoppedWithLoc;                    
                 }
                 else
                 {
-                    return string.IsNullOrEmpty(_model.ScanFolder) ? AppStatus.RunningWithNoLoc : AppStatus.RunningWithNoLoc;
+                    return string.IsNullOrEmpty(_model.RptFolder) ? AppStatus.RunningWithNoLoc : AppStatus.RunningWithNoLoc;
                 }
             }
         }
@@ -115,14 +115,14 @@ namespace CtrlCenter.ViewModel
             }
         }
 
-        public string ScanFolder
+        public string RptFolder
         {
-            get => _model.ScanFolder;
+            get => _model.RptFolder;
             set
             {
-                if (_model.ScanFolder != value)
+                if (_model.RptFolder != value)
                 {
-                    _model.ScanFolder = value;
+                    _model.RptFolder = value;
                     OnPropertyChanged();
                 }
             }
@@ -131,6 +131,12 @@ namespace CtrlCenter.ViewModel
         public string RptPattern
         {
             get => _model.RptPattern;
+        }
+
+        //注册表存储RptFolder的key
+        public string RptFolderRegKey
+        {
+            get => $"{_model.Exe}_rpt";
         }
 
         public Process  Process
@@ -153,7 +159,8 @@ namespace CtrlCenter.ViewModel
             {
                 if (string.IsNullOrEmpty(_model.FullName))
                     return _model.Type == AppType.HVC ? "搜索app" : "未安装";
-                return _model.Process == null ? "启动app" : "关闭app";
+                //return _model.Process == null ? "启动app" : "关闭app";
+                return _model.Process == null ? "启动app" : "弹出app";
             }
         }
 

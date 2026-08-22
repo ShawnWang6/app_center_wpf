@@ -10,6 +10,16 @@ namespace CtrlCenter.View
             InitializeComponent();
             DataContext = viewModel;
             Loaded += MainWindow_Loaded;
+            this.Topmost = viewModel.TopMost;
+
+            if (viewModel.ShowRptName)
+            {
+                FileColumn.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                FileColumn.Visibility = Visibility.Collapsed;
+            }
         }       
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
