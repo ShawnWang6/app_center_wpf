@@ -1,7 +1,6 @@
 ﻿using CtrlCenter.DataModel;
 using CtrlCenter.Interfaces;
 using CtrlCenter.Storage;
-using Newtonsoft.Json;
 using Serilog;
 using System.Diagnostics;
 using System.IO;

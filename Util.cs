@@ -4,8 +4,8 @@ using CtrlCenter.Storage;
 using DocumentFormat.OpenXml.Drawing.Diagrams;
 using DocumentFormat.OpenXml.Office2013.Excel;
 using Microsoft.Win32;
-using Newtonsoft.Json;
 using Serilog;
+using System.Collections.Generic;
 using System.ComponentModel;
 //using System.Data;
 using System.Diagnostics;
@@ -14,6 +14,8 @@ using System.IO;
 using System.Management;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace CtrlCenter
 {
@@ -21,16 +23,36 @@ namespace CtrlCenter
     {
         public static readonly Encoding GbkEncoding = Encoding.GetEncoding("GBK");
 
+        public static readonly JsonSerializerOptions JsonSerOpts = new JsonSerializerOptions
+        {
+            Converters = { new EnumDictionaryJsonConverter<AppType, RptFile>() },
+            //PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            WriteIndented = false            
+        };
+
+        public static IDictionary<AppType, RptFile> ParseRptHisJson(string json)
+        {
+            // 反序列化
+            return JsonSerializer.Deserialize<Dictionary<AppType, RptFile>>(json, JsonSerOpts);
+        }
+
+        public static string RptFilesToJson(IDictionary<AppType, RptFile> files)
+        {
+            // 反序列化
+            return JsonSerializer.Serialize(files, JsonSerOpts);
+        }
+
+
         public static (string, string) GetTxtAndNoFromZkc(string filePath)
         {
             var json = File.ReadAllText(filePath);
-            var data = JsonConvert.DeserializeObject<ZkcRptSwitchNoModel>(json);
+            var data = JsonSerializer.Deserialize<ZkcRptSwitchNoModel>(json);
             return (json, data?.RptCfg?.SwitchNo);
         }
         public static (string, string) GetTxtAndNoFromLrt(string filePath)
         {
             var json = File.ReadAllText(filePath);
-            var data = JsonConvert.DeserializeObject<LrtRptSwitchNoModel>(json);
+            var data = JsonSerializer.Deserialize<LrtRptSwitchNoModel>(json);
             return (json, data?.DevId);
         }
 
@@ -59,7 +81,7 @@ namespace CtrlCenter
                 SwitchNo = switchNo,
                 MinTime = ParseYyMmDdHhMmSs(minTime),
                 MaxTime = ParseYyMmDdHhMmSs(maxTime),
-                RptJson = JsonConvert.SerializeObject(rpts)
+                RptJson = JsonSerializer.Serialize(rpts)
             };
         }
 
@@ -88,7 +110,7 @@ namespace CtrlCenter
                 TestTime = testTime,
                 Tester = ""
             };
-            var json = JsonConvert.SerializeObject(model);
+            var json = JsonSerializer.Serialize(model);
             File.WriteAllText(Path.Combine(folder, $"{now.ToString("yyMMddHHmmss")}_ir_{switchNo}.rpt"), json);
         }
         public static void SimHvcReport(string folder, string switchNo)
@@ -114,10 +136,10 @@ namespace CtrlCenter
             var now = DateTime.Now;
             var testTime = now.ToString("yyyy-MM-dd HH:mm:ss");            
             var templJson = File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "zkc_rpt_template.rpt"));
-            var model = JsonConvert.DeserializeObject<ZkcAtRptModel>(templJson);
+            var model = JsonSerializer.Deserialize<ZkcAtRptModel>(templJson);
             model.TestTime = testTime;
             model.RptCfg.SwitchNo = switchNo;
-            var json = JsonConvert.SerializeObject(model);
+            var json = JsonSerializer.Serialize(model);
             File.WriteAllText(Path.Combine(folder, $"{now.ToString("yyMMddHHmmss")}_zkc.rpt"), json);
         }
 
@@ -129,7 +151,7 @@ namespace CtrlCenter
                 var tokens = file.Content.Split(',');
                 result = new HvcRptModel
                 {
-                    TestTime = ParseYyMmDdHhMmSs(file.TimeStamp).ToLongDateString(),
+                    TestTime = ParseYyMmDdHhMmSs(file.TimeStamp).ToString("yyyy-MM-dd HH:mm:ss"),
                     SwitchNo = tokens.Length > 1 ? tokens[1] : string.Empty,                    
                     Dc = tokens.Length > 2 ?  tokens[2] : string.Empty,
                     Ac = tokens.Length > 3 ? tokens[3] : string.Empty,
@@ -139,7 +161,7 @@ namespace CtrlCenter
             }
             else
             {
-                result = JsonConvert.DeserializeObject<T>(file.Content);
+                result = JsonSerializer.Deserialize<T>(file.Content);
             }
             return result;
         }
@@ -302,36 +324,6 @@ namespace CtrlCenter
             RegistryValueKind kind = GetRegistryValueKind(value);
             subKey.SetValue(name, value, kind);
             return true;
-        }
-
-        // 类型转换辅助方法
-        private static T ConvertValueOld<T>(object rawValue, T defaultValue)
-        {
-            Type targetType = typeof(T);
-
-            if (targetType == typeof(int))
-            {
-                if (rawValue is int intValue)
-                    return (T)(object)intValue;
-                if (int.TryParse(rawValue.ToString(), out int result))
-                    return (T)(object)result;
-            }
-            else if (targetType == typeof(long))
-            {
-                if (rawValue is long longValue)
-                    return (T)(object)longValue;
-                if (rawValue is int intValue)
-                    return (T)(object)(long)intValue;
-                if (long.TryParse(rawValue.ToString(), out long result))
-                    return (T)(object)result;
-            }
-            else if (targetType == typeof(string))
-            {
-                return (T)(object)rawValue.ToString();
-            }
-
-            // 不支持的类型或转换失败，返回默认值
-            return defaultValue;
         }
 
         // 获取 RegistryValueKind
@@ -515,6 +507,62 @@ namespace CtrlCenter
             }
 
             return false;
+        }
+
+        // Windows API 常量定义
+        private const int ASSOCF_INIT_IGNOREUNKNOWN = 0x00000400;
+        private const int ASSOCSTR_EXECUTABLE = 2;
+
+        [DllImport("shlwapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern int AssocQueryString(
+            int flags,
+            int str,
+            string pszAssoc,
+            string pszExtra,
+            StringBuilder pszOut,
+            ref int pcchOut
+        );
+
+        /// <summary>
+        /// 获取指定文件扩展名关联的应用程序路径
+        /// </summary>
+        /// <param name="extension">文件扩展名，如 ".xlsx"</param>
+        /// <returns>关联应用程序的完整路径，如果未找到则返回 null</returns>
+        public static string GetXlsAssociatedAppPath(string extension)
+        {
+            // 确保扩展名以点开头
+            if (!extension.StartsWith("."))
+            {
+                extension = "." + extension;
+            }
+
+            const int bufferSize = 1024;
+            StringBuilder buffer = new StringBuilder(bufferSize);
+            int bufferLength = bufferSize;
+
+            int result = AssocQueryString(
+                ASSOCF_INIT_IGNOREUNKNOWN,
+                ASSOCSTR_EXECUTABLE,
+                extension,
+                null,
+                buffer,
+                ref bufferLength
+            );
+
+            if (result == 0) // S_OK
+            {
+                return buffer.ToString().Trim();
+            }
+
+            return null; // 没有找到关联程序
+        }
+
+        /// <summary>
+        /// 检查系统是否有关联程序可打开指定扩展名的文件
+        /// </summary>
+        public static bool HasAssociatedApp(string extension)
+        {
+            return GetXlsAssociatedAppPath(extension) != null;
         }
     }
 
@@ -719,5 +767,75 @@ namespace CtrlCenter
         public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
         public const uint WM_CLOSE = 0x0010;
+    }
+
+
+    
+
+    public class EnumDictionaryJsonConverter<TEnum, TValue> : JsonConverter<IDictionary<TEnum, TValue>>
+        where TEnum : struct, Enum
+    {
+        private readonly JsonConverter<TValue> _valueConverter;
+        private readonly Type _valueType;
+
+        public EnumDictionaryJsonConverter()
+        {
+            var options = new JsonSerializerOptions();            
+            _valueType = typeof(TValue);
+            _valueConverter = (JsonConverter<TValue>)options.GetConverter(typeof(TValue));
+        }
+
+        public override IDictionary<TEnum, TValue> Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.StartObject)
+                throw new JsonException("Expected StartObject token");
+
+            var dictionary = new Dictionary<TEnum, TValue>();
+
+            while (reader.Read())
+            {
+                if (reader.TokenType == JsonTokenType.EndObject)
+                    return dictionary;
+
+                // 读取键（枚举的字符串表示）
+                if (reader.TokenType != JsonTokenType.PropertyName)
+                    throw new JsonException("Expected PropertyName token");
+
+                string propertyName = reader.GetString();
+
+                // 将字符串转换为枚举
+                if (!Enum.TryParse<TEnum>(propertyName, true, out var enumKey))
+                {
+                    throw new JsonException($"Unable to convert '{propertyName}' to enum type {typeof(TEnum).Name}");
+                }
+
+                // 读取值
+                reader.Read();
+                var value = JsonSerializer.Deserialize<TValue>(ref reader, options);
+                dictionary[enumKey] = value;
+            }
+
+            return dictionary;
+        }
+
+        public override void Write(
+            Utf8JsonWriter writer,
+            IDictionary<TEnum, TValue> value,
+            JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+
+            foreach (var kvp in value)
+            {
+                // 将枚举转换为字符串作为键
+                writer.WritePropertyName(kvp.Key.ToString());
+                JsonSerializer.Serialize(writer, kvp.Value, options);
+            }
+
+            writer.WriteEndObject();
+        }
     }
 }

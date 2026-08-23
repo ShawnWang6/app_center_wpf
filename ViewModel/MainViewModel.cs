@@ -6,6 +6,7 @@ using CtrlCenter.Interfaces;
 using CtrlCenter.Logic;
 using CtrlCenter.Storage;
 using DocumentFormat.OpenXml.EMMA;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Serilog;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -30,6 +31,8 @@ namespace CtrlCenter.ViewModel
         private readonly ManagementEventWatcher _appWatcher;        
         private readonly RptHisManager _rptHisManager;
         private readonly AppSetting _appSetting;
+        public readonly bool _hasXlsAssociatedApp = Util.HasAssociatedApp(".xlsx");
+        private readonly string ExcelRptTemplate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "rpt_template.xlsx");
         public bool TopMost
         {
             get => _appSetting.TopMost;
@@ -43,12 +46,44 @@ namespace CtrlCenter.ViewModel
                 }
             }
         }
+        public bool ShowSimTool
+        {
+            get => _appSetting.Debug??false;
+            set
+            {
+                if (_appSetting.Debug != value)
+                {
+                    _appSetting.Debug = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         public string TopMostBtnText => TopMost ? "取消置顶": " 置  顶 ";
         public bool ShowRptName => false;
 
         public ObservableCollection<AppViewModel> Apps { get; set; } = new ObservableCollection<AppViewModel>();
         public ObservableCollection<RptFileViewModel> RptFiles { get; set; } = new ObservableCollection<RptFileViewModel>();
         public ObservableCollection<RptHisViewModel>  RptHis { get; set; } = new ObservableCollection<RptHisViewModel>();
+
+        private IList<RptHisViewModel> _selectedRptHis { get; set; } = new  List<RptHisViewModel>();
+
+        public bool CanOpendMergedRpt { get; set; }
+        public bool CanExportMergedRpt { get; set; }
+        public IList<RptHisViewModel> SelectedRptHis
+        {
+            get => _selectedRptHis;
+            set
+            {
+                if (_selectedRptHis != value)
+                {
+                    _selectedRptHis = value;
+                    CanOpendMergedRpt = _selectedRptHis.Count == 1;
+                    CanExportMergedRpt = _selectedRptHis.Count >= 1;
+                    OnPropertyChanged(nameof(CanOpendMergedRpt));
+                    OnPropertyChanged(nameof(CanExportMergedRpt));
+                }
+            }
+        }
 
         public ICommand ToggleTopmostCommand { get; }
         public ICommand SimAppRptCommand { get; }
@@ -58,8 +93,10 @@ namespace CtrlCenter.ViewModel
         public ICommand MergeRptCommand { get; }
         public ICommand PreviewMergedRptCommand { get; }
         public ICommand RefreshRptCommand { get; }
+        public ICommand OpenMergedRptCommand { get; }
+        public ICommand ExportMergedRptCommand { get; }
         public bool CanMergeRpt => RptFiles.Count >= 3;
-        public bool CanPreviewMergedRpt => RptFiles.Count > 1;
+        public bool CanPreviewMergedRpt => RptFiles.Count >= 3;
         private AppModel[] InitApps()
         {
             var apps = new AppModel[]
@@ -192,6 +229,7 @@ namespace CtrlCenter.ViewModel
                 RptFiles.Add(new RptFileViewModel(file, merged));
             }
             OnPropertyChanged(nameof(CanMergeRpt));
+            OnPropertyChanged(nameof(CanPreviewMergedRpt));
         }
         ManagementEventWatcher MonitorApps(IList<AppViewModel> apps)
         {
@@ -368,6 +406,9 @@ namespace CtrlCenter.ViewModel
             MergeRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecuteMergeRpt);
             PreviewMergedRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecutePreviewMergedRpt);
             RefreshRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecuteRefreshRptCommand);
+
+            OpenMergedRptCommand = new RelayCommand<ObservableCollection<RptHisViewModel>>(ExecuteOpenMergedRpt);
+            ExportMergedRptCommand = new RelayCommand<ObservableCollection<RptHisViewModel>>(ExecuteExportMergedRpt);
         }
         private void ExecuteToggleTopmost(MainViewModel myself)
         {
@@ -412,15 +453,137 @@ namespace CtrlCenter.ViewModel
             }
             System.Windows.MessageBox.Show($"合并报表: {(ok ? "成功" : $"失败:{err}")}");
         }
-
+        string TryOpenRptXls(string fileName)
+        {
+            try
+            {
+                // 尝试使用系统默认关联程序打开一个测试文件
+                // 注意：实际使用时应使用一个真实存在的临时文件路径
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    UseShellExecute = true   // 必须设置为 true
+                };
+                Process.Start(startInfo);
+                // 如果上面这行没有抛出异常，通常意味着存在关联程序
+                // 但需要注意，即使有关联，也可能因其他原因启动失败
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                // 如果抛出异常，则可能没有关联程序，或关联程序不可用
+                // 这里可以处理“没有找到关联应用”的逻辑
+                return $"打开文件败: {ex.Message}";
+            }
+        }
         private void ExecutePreviewMergedRpt(ObservableCollection<RptFileViewModel> rptFiles)
         {
-            System.Windows.MessageBox.Show($"预览合并报表: {rptFiles.Count}");
-            var rpts = _rptFileManager.SwitchFiles.Values;
-            var rptTemplate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "rpt_template.xlsx");
-            ExcelRptGenerator.GenerateReport(rptTemplate, "rpt.xlsx", _rptFileManager.SwitchFiles);
-            //var switchNo = _rptFileManager.SwitchFiles.Values.FirstOrDefault().SwitchNo;
-            //var switchReport = Util.BuildSwitchHisEntity(_rptFileManager.SwitchFiles, switchNo);
+            //System.Windows.MessageBox.Show($"预览合并报表: {rptFiles.Count}");
+            var rpts = _rptFileManager.SwitchFiles.Values;            
+            var previewFile = GenPreviewXlsFile();
+            var errMsg = ExcelRptGenerator.GenerateReport(ExcelRptTemplate, previewFile, _rptFileManager.SwitchFiles);
+            if (string.IsNullOrEmpty(errMsg) && _hasXlsAssociatedApp)
+            {
+                errMsg = TryOpenRptXls(previewFile);
+                if (!string.IsNullOrEmpty(errMsg))
+                {
+                    System.Windows.MessageBox.Show(errMsg);
+                }
+            }
+            else
+            {
+                System.Windows.MessageBox.Show($"合并报表失败: {errMsg}");
+            }
+        }
+
+        string _tmpFold;
+        string _previewFolder;
+        string GenPrintXlsFile(long hisId)
+        {
+            if(string.IsNullOrEmpty(_tmpFold) || !Directory.Exists(_tmpFold))
+            {
+                _tmpFold = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "his");
+                if (!Directory.Exists(_tmpFold)) Directory.CreateDirectory(_tmpFold);
+            }
+            return Path.Combine(_tmpFold, $"{hisId}.xlsx");
+        }
+        string GenPreviewXlsFile()
+        {
+            if (string.IsNullOrEmpty(_previewFolder) || !Directory.Exists(_previewFolder))
+            {
+                _previewFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "preview");
+                if (!Directory.Exists(_previewFolder)) Directory.CreateDirectory(_previewFolder);
+            }
+            return Path.Combine(_tmpFold, $"{Guid.NewGuid().ToString()}.xlsx");
+        }
+        private void ExecuteOpenMergedRpt(ObservableCollection<RptHisViewModel> rptHis)
+        {            
+            if (SelectedRptHis.Count != 1) return;
+            
+            var excelBytes = _switchHisRepos.GetExcel(SelectedRptHis[0].Model.Id);
+            if (excelBytes == null || excelBytes.Length == 0)
+            {
+                var rpts = Util.ParseRptHisJson(SelectedRptHis[0].Model.RptJson);
+                var printFile = GenPrintXlsFile(SelectedRptHis[0].Model.Id);
+                var errMsg = ExcelRptGenerator.GenerateReport(ExcelRptTemplate, printFile, rpts);
+                if (!string.IsNullOrEmpty(errMsg))
+                {
+                    System.Windows.MessageBox.Show($"生成打表失败: {errMsg}");
+                    return;
+                }
+
+                try
+                {
+                    _switchHisRepos.SetExcel(SelectedRptHis[0].Model.Id, File.ReadAllBytes(printFile));
+                    Log.Information($"更新历史xls报表[{SelectedRptHis[0].Model.Id}]成功");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"更新历史xls报表失败: {ex}");
+                }
+
+                if (!_hasXlsAssociatedApp)
+                {
+                    System.Windows.MessageBox.Show($"报表文件已生成，未发现关联程序打开它: {printFile}");
+                    return;
+                }
+
+                errMsg = TryOpenRptXls(printFile);
+                if (!string.IsNullOrEmpty(errMsg))
+                {
+                    System.Windows.MessageBox.Show(errMsg);
+                    return;
+                }
+            }
+            else
+            {
+                var printFile = GenPrintXlsFile(SelectedRptHis[0].Model.Id);
+                try
+                {
+                    File.WriteAllBytes(printFile, excelBytes);
+                }
+                catch (Exception ex)
+                {
+                    System.Windows.MessageBox.Show($"生成史报表文件({printFile})失败, {ex.Message}");
+                    return;
+                }
+
+                if (!_hasXlsAssociatedApp)
+                {
+                    System.Windows.MessageBox.Show($"报表文件已生成，未发现关联程序打开它: {printFile}");
+                    return;
+                }
+                var errMsg = TryOpenRptXls(printFile);
+                if (!string.IsNullOrEmpty(errMsg))
+                {
+                    System.Windows.MessageBox.Show(errMsg);
+                    return;
+                }
+            }
+        }
+        private void ExecuteExportMergedRpt(ObservableCollection<RptHisViewModel> rptHis)
+        {
+            System.Windows.MessageBox.Show($"ExecuteOpenMergedRpt: {SelectedRptHis.Count}");
         }
 
         private void ExecuteRefreshRptCommand(ObservableCollection<RptFileViewModel> rptFiles)

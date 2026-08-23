@@ -2,7 +2,7 @@
 using CtrlCenter.AppRptModel;
 using CtrlCenter.DataModel;
 using DocumentFormat.OpenXml.Spreadsheet;
-using Newtonsoft.Json;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace CtrlCenter.Excel
 {
@@ -48,11 +49,12 @@ namespace CtrlCenter.Excel
         /// <param name="outputPath">输出文件路径</param>
         /// <param name="rpts">报表数据</param>
         /// <param name="sheetName">模板sheet名</param>
-        public static  void GenerateReport(string templatePath, string outputPath,
+        public static string GenerateReport(string templatePath, string outputPath,
                                    IDictionary<AppType, RptFile> rpts,
                                    string sheetName = "lrt_hvt_zkc_at"
                                    )
         {
+            string errMsg = string.Empty;
             var replaces = new Dictionary<string, string>()
             {
                 { RptPlaceholder.DepName, string.Empty },
@@ -111,10 +113,11 @@ namespace CtrlCenter.Excel
                 replaces[RptPlaceholder.SwitchModel] = atRptModel.RptCfg.SwitchModel;
             }            
             
-            using (var workbook = new XLWorkbook(templatePath))
+            Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+            using var workbook = new XLWorkbook(templatePath);
+            try
             {
                 var sheet = workbook.Worksheet(sheetName);
-
                 //报表头及固定行填充
                 string titleRange = "A2:M7"; //TODO 根据实际模板调整范围
                 var targetCells = sheet.Range(titleRange).Cells();
@@ -125,7 +128,7 @@ namespace CtrlCenter.Excel
                     bool replace = false;
                     if (replaces.TryGetValue(text, out string value1))
                     {
-                        cell.Value = value1;
+                        cell.Value =  value1.Trim();
                         replace = true;
                     }
                     if (replace) continue;
@@ -136,7 +139,7 @@ namespace CtrlCenter.Excel
                     }
                     if (replaces.TryGetValue(key, out string value))
                     {
-                        cell.Value = value;
+                        cell.Value = value.Trim();
                     }
                 }
 
@@ -159,8 +162,19 @@ namespace CtrlCenter.Excel
                     // 4. 填充数据
                     bool isFirstPage = true;
                     int currPageDataRowCount = 0;//当前页填充行数
+                    bool isRecolseRow = false;                    
                     foreach(var rowData in allRows)
                     {
+                        //重合闸title行会被skipped
+                        bool isRecloseTitleRow = rowData[0] == "试验类型" || rowData[0] == "实验类型";
+                        if (isRecloseTitleRow)
+                        {
+                            isRecolseRow = true; //后续行是重合闸
+                            continue;
+                        }
+
+                        
+
                         // 1. 插入垂直分页符：在 "B" 列之后分页（第2列之后）
                         //sheet.ColumnPageBreaks.Add(2);
 
@@ -172,13 +186,13 @@ namespace CtrlCenter.Excel
                             // 如果是第一行数据，直接使用模板行填充（保留模板行）
                             if (sheetRow == templateRowIndex)
                             {
-                                FillRowData(sheet, sheetRow, rowData);
+                                FillRowData(sheet, sheetRow, rowData, isRecolseRow);
                             }
                             else
                             {
                                 // 从第二行开始，复制模板行到新行
                                 templRow.CopyTo(sheet.Row(sheetRow));
-                                FillRowData(sheet, sheetRow, rowData);
+                                FillRowData(sheet, sheetRow, rowData, isRecolseRow);
                             }                            
                             sheetRow++;
                             currPageDataRowCount++;
@@ -201,7 +215,7 @@ namespace CtrlCenter.Excel
 
                             // 复制模板行到新行并填充数据
                             templRow.CopyTo(sheet.Row(sheetRow));
-                            FillRowData(sheet, sheetRow, rowData);
+                            FillRowData(sheet, sheetRow, rowData, isRecolseRow);
 
 
                             //sheet行号更新
@@ -219,45 +233,85 @@ namespace CtrlCenter.Excel
                 // ---------- 6. 保存文件 ----------
                 workbook.SaveAs(outputPath);
             }
+            catch(Exception ex)
+            {
+                errMsg = ex.Message;
+            }
+            finally
+            {
+                Mouse.OverrideCursor = null;
+            }
+            return errMsg;
         }
         /// <summary>
         /// 将 List<string> 数据填充到指定行的各列（从第1列开始）
         /// </summary>
-        private static void FillRowData(IXLWorksheet sheet, int rowIndex, List<string> rowData)
+        private static void FillRowData(IXLWorksheet sheet, int rowIndex, List<string> rowData, bool isRecloseTitleRow = false)
         {
+            if (isRecloseTitleRow)
+            {
+                FillRecloseRowData(sheet, rowIndex, rowData);
+                return;
+            }
             for (int col = 1; col <= rowData.Count; col++)
             {
-                sheet.Cell(rowIndex, col).Value = rowData[col - 1] ?? "";
+                var value = rowData[col - 1]??string.Empty;
+                value = value.Trim();
+                if (value == "合格") value = "是";
+                else if (value == "不合格") value = "否";                
+                var cell = sheet.Cell(rowIndex, col);
+                cell.Value = value;
+                if (value == "-")
+                {
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
             }
         }
-
         /// <summary>
-        /// 将数据字典填充到指定行的各列
+        /// 将 List<string> 数据填充到指定行的各列（从第1列开始）
         /// </summary>
-        private static void FillDataRow(IXLWorksheet sheet, int rowNumber, Dictionary<string, object> data)
+        private static void FillRecloseRowData(IXLWorksheet sheet, int rowIndex, List<string> rowData)
         {
-            // 假设数据字典的Key为列号（如 "A", "B", "C"）或列索引
-            foreach (var kvp in data)
+            for (int col = 1; col <= 5; col++)
             {
-                string columnLetter = kvp.Key;
-                object value = kvp.Value;
-
-                var cell = sheet.Cell($"{columnLetter}{rowNumber}");
-                if (value is DateTime dt)
-                    cell.Value = dt;
-                else if (value is decimal d)
-                    cell.Value = d;
-                else
-                    cell.Value = value?.ToString() ?? "";
+                var value = rowData[col - 1] ?? string.Empty;
+                value = value.Trim();
+                if (value == "合格") value = "是";
+                else if (value == "不合格") value = "否";
+                var cell = sheet.Cell(rowIndex, col);
+                cell.Value = value;
+                if (value == "-")
+                {
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
             }
-        }
-        private static void FillDataRow(IXLWorksheet sheet, int rowNumber, List<string> data)
-        {
-            // 假设数据字典的Key为列号（如 "A", "B", "C"）或列索引
-            int col = 1;
-            foreach (var value in data)
+
+            // cell(6+7)="无流时间" cell(8)=rowData[5]
+            var noFlowTimeCell = sheet.Cell(rowIndex, 6);
+            noFlowTimeCell.Value = "无流时间";
+            sheet.Cell(rowIndex, 8).Value = rowData[5].Trim();
+            sheet.Range(rowIndex, 6, rowIndex, 7).Merge();
+            noFlowTimeCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            noFlowTimeCell.Style.Font.Bold = true;
+
+            // cell(9+10)="金短时间" cell(11)=rowData[6]
+            var goldenShortTimeCell = sheet.Cell(rowIndex, 9);
+            goldenShortTimeCell.Value = "金短时间";
+            sheet.Cell(rowIndex, 11).Value = rowData[6].Trim();
+            sheet.Range(rowIndex, 9, rowIndex, 10).Merge();
+            goldenShortTimeCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            goldenShortTimeCell.Style.Font.Bold = true;
+
+            for (int col = 12; col <= rowData.Count; col++)
             {
-                sheet.Cell(rowNumber, col++).Value = value;
+                var value = rowData[col - 1] ?? string.Empty;
+                value = value.Trim();
+                var cell = sheet.Cell(rowIndex, col);
+                cell.Value = value;
+                if (value == "-")
+                {
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
             }
         }
     }

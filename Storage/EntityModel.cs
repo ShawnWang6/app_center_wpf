@@ -40,7 +40,7 @@ namespace CtrlCenter.Storage
         public byte[] RptExcel { get; set; }
 
         /// <summary>
-        //  组合报告信息，源于SwitchRptModel对象的Json序列化
+        //  组合报告信息，源于 SwitchRptModel 对象的Json序列化
         /// </summary>
         public string RptJson { get; set; }
     }

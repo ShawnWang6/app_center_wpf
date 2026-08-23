@@ -26,6 +26,8 @@ namespace CtrlCenter.DataModel
 
         public bool TopMost { get; set; } = true;
 
+        public bool? Debug { get; set; }
+
         //[Required]
         //public EmailSettings Email { get; set; }
 

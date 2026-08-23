@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:CtrlCenter.ViewModel"         
         mc:Ignorable="d"
-        Title="测试仪报表管理平台" Height="600" Width="1048"
+        Title="测试仪报表管理平台" Height="600" Width="1054"
         WindowStartupLocation="CenterScreen"
         FontFamily="Microsoft YaHei"
         Topmost="{Binding TopMost}"
@@ -42,15 +42,19 @@
             <StackPanel Orientation="Horizontal"   DockPanel.Dock="Top">
                 <Button Content="{Binding TopMostBtnText}"
                         Command="{Binding ToggleTopmostCommand}"
+                        MouseRightButtonDown="TopmostButton_MouseRightButtonDown"
                         Margin="4,0" />
                 <Button Content="模拟报表"
                          Command="{Binding SimAppRptCommand}"
+                         Visibility="{Binding ShowSimTool, Converter={StaticResource BoolToVisibility}}" 
                          Margin="4,0"/>
                 <ComboBox ItemsSource="{Binding SimSwitchNos}" 
                           SelectedItem="{Binding SimSelectSwitchNo, UpdateSourceTrigger=PropertyChanged}"
+                          Visibility="{Binding ShowSimTool, Converter={StaticResource BoolToVisibility}}" 
                           Margin="4,0"/>
                 <ComboBox ItemsSource="{Binding SimsAppTypes}" 
                           SelectedItem="{Binding SimSelectAppType, UpdateSourceTrigger=PropertyChanged}"
+                          Visibility="{Binding ShowSimTool, Converter={StaticResource BoolToVisibility}}" 
                           Margin="4,0">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
@@ -191,7 +195,13 @@
                                 </Style>
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
-                        <DataGridTextColumn Header="开关编号" Binding="{Binding SwitchNo}" Width="180" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="开关编号" Binding="{Binding SwitchNo}" Width="180" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                         <DataGridTextColumn x:Name="FileColumn"  Header="文件名" Binding="{Binding FileName}" Width="220" IsReadOnly="True"/>
                         <DataGridTextColumn Header="报表时间" 
                             Binding="{Binding TimeStamp,StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
@@ -219,8 +229,19 @@
           <Grid Grid.Column="2" Background="LightBlue">
                 <!--TextBlock Text="右侧面板" VerticalAlignment="Center" HorizontalAlignment="Center" /-->
                 <DockPanel>
-                    <Label DockPanel.Dock="Top" Content="历史综合报表" HorizontalAlignment="Center"/>
-                    <DataGrid ItemsSource="{Binding RptHis}" 
+                <StackPanel Orientation="Horizontal"   DockPanel.Dock="Top">
+                    <Label DockPanel.Dock="Top" Content="合并报表历史" HorizontalAlignment="Center"/>
+                    <Button Content=" 打印报表 " Margin="8,0"                        
+                        Command="{Binding OpenMergedRptCommand}"
+                        IsEnabled="{Binding CanOpendMergedRpt}" 
+                        CommandParameter="{Binding RptHis}" />
+                    <Button Content=" 导出报表 " Margin="8,0"                        
+                        Command="{Binding ExportMergedRptCommand}"
+                        IsEnabled="{Binding CanExportMergedRpt}" 
+                        CommandParameter="{Binding RptHis}" />
+                </StackPanel>
+                        
+                <DataGrid ItemsSource="{Binding RptHis}" 
                         IsReadOnly="True"
                         AutoGenerateColumns="False"
                         CanUserAddRows="False"
@@ -228,6 +249,7 @@
                         CanUserResizeRows="False"
                         CanUserSortColumns="True"
                         HeadersVisibility="Column"
+                        SelectionChanged="RptHisDataGrid_SelectionChanged"
                         GridLinesVisibility="All" >
                     <DataGrid.ColumnHeaderStyle>
                         <Style TargetType="{x:Type DataGridColumnHeader}">
