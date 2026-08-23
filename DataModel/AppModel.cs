@@ -8,10 +8,10 @@ using System.Threading.Tasks;
 namespace CtrlCenter.DataModel
 {
     public enum AppType
-    {
-        HVC,
+    {       
         ZKC,
         LRT,
+        HVC,
     }
 
     public class AppModel

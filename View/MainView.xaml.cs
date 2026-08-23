@@ -10,7 +10,6 @@ namespace CtrlCenter.View
             InitializeComponent();
             DataContext = viewModel;
             Loaded += MainWindow_Loaded;
-            this.Topmost = viewModel.TopMost;
 
             if (viewModel.ShowRptName)
             {

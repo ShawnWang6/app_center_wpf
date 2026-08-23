@@ -5,9 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:CtrlCenter.ViewModel"         
         mc:Ignorable="d"
-        Title="App报表综合管理" Height="600" Width="1024"
+        Title="测试仪报表管理平台" Height="600" Width="1048"
         WindowStartupLocation="CenterScreen"
         FontFamily="Microsoft YaHei"
+        Topmost="{Binding TopMost}"
         FontSize="16">
 
     <!--Window.DataContext>
@@ -30,7 +31,7 @@
     
      <Grid Background="LightGray">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="500" />
+                <ColumnDefinition Width="510" />
                 <ColumnDefinition Width="5" />                
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -38,11 +39,34 @@
          
          <!-- 2. 左侧内容 -->
          <DockPanel Grid.Column="0">
-            <!-- 2. 左上App DataGrid -->            
-            <DataGrid   AutoGenerateColumns="False" 
+            <StackPanel Orientation="Horizontal"   DockPanel.Dock="Top">
+                <Button Content="{Binding TopMostBtnText}"
+                        Command="{Binding ToggleTopmostCommand}"
+                        Margin="4,0" />
+                <Button Content="模拟报表"
+                         Command="{Binding SimAppRptCommand}"
+                         Margin="4,0"/>
+                <ComboBox ItemsSource="{Binding SimSwitchNos}" 
+                          SelectedItem="{Binding SimSelectSwitchNo, UpdateSourceTrigger=PropertyChanged}"
+                          Margin="4,0"/>
+                <ComboBox ItemsSource="{Binding SimsAppTypes}" 
+                          SelectedItem="{Binding SimSelectAppType, UpdateSourceTrigger=PropertyChanged}"
+                          Margin="4,0">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <!-- 直接显示枚举名称 -->
+                            <TextBlock Text="{Binding}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+
+            </StackPanel>
+                    <!-- 2. 左上App DataGrid -->            
+            <DataGrid AutoGenerateColumns="False" 
                       DockPanel.Dock="Top"
                       RowHeight="50"
                       CanUserAddRows="False" 
+                      HeadersVisibility="None"
                       ItemsSource="{Binding Apps}" 
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -153,13 +177,32 @@
                             CanUserResizeRows="False"
                             CanUserSortColumns="True"
                             HeadersVisibility="Column">
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="{x:Type DataGridColumnHeader}">
+                            <Setter Property="HorizontalContentAlignment" Value="Center" />
+                            <Setter Property="VerticalContentAlignment" Value="Center" />
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="报表类型" Binding="{Binding FileType}" Width="75" IsReadOnly="True"/>
-                        <DataGridTextColumn Header="开关编号" Binding="{Binding SwitchNo}" Width="90" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="报表类型" Binding="{Binding FileType}" Width="75" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="开关编号" Binding="{Binding SwitchNo}" Width="180" IsReadOnly="True"/>
                         <DataGridTextColumn x:Name="FileColumn"  Header="文件名" Binding="{Binding FileName}" Width="220" IsReadOnly="True"/>
-                        <DataGridTextColumn Header="试验时间" 
+                        <DataGridTextColumn Header="报表时间" 
                             Binding="{Binding TimeStamp,StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
                             Width="180"  IsReadOnly="True"/>
+                        <DataGridTextColumn Header="是否合并" Binding="{Binding Merged}" Width="75" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
@@ -186,18 +229,42 @@
                         CanUserSortColumns="True"
                         HeadersVisibility="Column"
                         GridLinesVisibility="All" >
-                      <DataGrid.Columns>
-                        <DataGridTextColumn Header="开关编号" Binding="{Binding SwitchNo}" Width="90" IsReadOnly="True"/>
-                        <DataGridTextColumn Header="试验开始时间"
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="{x:Type DataGridColumnHeader}">
+                            <Setter Property="HorizontalContentAlignment" Value="Center" />
+                            <Setter Property="VerticalContentAlignment" Value="Center" />
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="开关编号" Binding="{Binding SwitchNo}" Width="180" IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="报表最早时间"
                                             Binding="{Binding MinTime,StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
-                                            Width="180"
-                                            IsReadOnly="True"/>
+                                            Width="170"
+                                            IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                         <!--DataGridTextColumn Header="试验结束时间" Binding="{Binding MaxTime}" Width="220" IsReadOnly="True"/-->
                         <DataGridTextColumn Header="合并报表时间"
                                             Binding="{Binding CreateTime,StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
-                                            Width="180" 
-                                            IsReadOnly="True"/>
-                      </DataGrid.Columns>
+                                            Width="170" 
+                                            IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
                     </DataGrid>                
             </DockPanel>
           </Grid>

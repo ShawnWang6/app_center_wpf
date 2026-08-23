@@ -15,7 +15,7 @@ namespace CtrlCenter.DataModel
         /// <summary>
         //  RptHisManager从数据库加载历史最大间隔
         /// </summary>
-        public TimeSpan LoadHisMaxTimeSpan { get; set; } = TimeSpan.FromDays(365);
+        public TimeSpan LoadHisMaxTimeSpan { get; set; } = TimeSpan.FromDays(7);
 
         public DbOptions DbOptions { get; set; } = new DbOptions();
         
@@ -28,8 +28,6 @@ namespace CtrlCenter.DataModel
 
         //[Required]
         //public EmailSettings Email { get; set; }
-
-        public TimeSpan ScanRptsMaxTimeSpan { get; set; }
 
         /// <summary>
         //  仅描扫描改时间戳据当前时间最大的时间间隔(单位秒), 默认只扫描最近5分钟的报表文件

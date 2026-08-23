@@ -35,7 +35,7 @@ namespace CtrlCenter.Logic
         void RescanRptFiles(IList<AppModel> apps)
         {
             // Get the current timestamp
-            long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            long currentTimestamp = Util.GetNowRptTimestamp();
 
             // Temporary dictionary to store the latest files during this scan
             var newLatestFiles = new Dictionary<string, RptFile>(StringComparer.OrdinalIgnoreCase);
@@ -98,7 +98,7 @@ namespace CtrlCenter.Logic
             }
             else
             {
-                long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                long currentTimestamp = Util.GetNowRptTimestamp();
                 if (currentTimestamp - rpt.TimeStamp > _appSetting.ScanFileMaxTimeSpanSec)
                 {
                     return;

@@ -33,6 +33,8 @@ namespace CtrlCenter.ViewModel
         // 可以访问原始 Model（如果需要）
         public AppModel Model => _model;
 
+
+
         // 包装属性
 
         public AppStatus Status

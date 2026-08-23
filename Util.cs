@@ -63,6 +63,64 @@ namespace CtrlCenter
             };
         }
 
+        public static void SimLrtReport(string folder, string switchNo)
+        {
+            var now = DateTime.Now;
+            var testTime = now.ToString("yyyy-MM-dd HH:mm:ss");
+            var model = new LrtRptModel
+            {
+                Beizhu = "0916",
+                DevId = switchNo,
+                I = "12.0A",
+                IOk = "不合格",
+                LogTime = testTime,
+                Model = "",
+                Project = "",
+                Ra = "11.00μΩ",
+                RaOk = "合格",
+                RangeI = "[1, 11]",
+                RangeR = "[2, 22]",
+                Rb = "11.00μΩ",
+                RbOk = "合格",
+                Rc = "11.00μΩ",
+                RcOk = "合格",
+                Temp = "3.7℃",
+                TestTime = testTime,
+                Tester = ""
+            };
+            var json = JsonConvert.SerializeObject(model);
+            File.WriteAllText(Path.Combine(folder, $"{now.ToString("yyMMddHHmmss")}_ir_{switchNo}.rpt"), json);
+        }
+        public static void SimHvcReport(string folder, string switchNo)
+        {
+            var now = DateTime.Now;
+            var testTime = now.ToString("yyyy-MM-dd HH:mm:ss");
+            //8888,112,0.001 mA,0.052 mA,14.8 GΩ,OK
+            var model = new HvcRptModel
+            {
+                TestTime = testTime,
+                SwitchNo = switchNo,
+                Dc = "0.001 mA",
+                Ac = "0.052 mA",
+                InsRes = "14.8 GΩ",
+                Result = "OK"
+            };
+            var line = $"{model.SwitchNo},{model.SwitchNo},{model.Dc},{model.Ac},{model.InsRes},{model.Result}";            
+            File.WriteAllText(Path.Combine(folder, $"{now.ToString("yyMMddHHmmss")}.csv"), line, GbkEncoding);
+        }
+
+        public static void SimZkcReport(string folder, string switchNo)
+        {
+            var now = DateTime.Now;
+            var testTime = now.ToString("yyyy-MM-dd HH:mm:ss");            
+            var templJson = File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "zkc_rpt_template.rpt"));
+            var model = JsonConvert.DeserializeObject<ZkcAtRptModel>(templJson);
+            model.TestTime = testTime;
+            model.RptCfg.SwitchNo = switchNo;
+            var json = JsonConvert.SerializeObject(model);
+            File.WriteAllText(Path.Combine(folder, $"{now.ToString("yyMMddHHmmss")}_zkc.rpt"), json);
+        }
+
         public static T BuildExcelRptModel<T>(RptFile file) where T : class
         {
             T result = default;
@@ -108,7 +166,10 @@ namespace CtrlCenter
 
             return false;
         }
-
+        public static long GetNowRptTimestamp()
+        {
+            return long.Parse(DateTime.Now.ToString("yyMMddHHmmss"));
+        }
         public static DateTime ParseYyMmDdHhMmSs(long input)
         { 
             DateTime result = DateTime.Now;
@@ -410,8 +471,7 @@ namespace CtrlCenter
 
             string[] uninstallRoots = new[]
             {
-                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",                
                 @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
             };
 
@@ -501,6 +561,10 @@ namespace CtrlCenter
 
             if (hWnd != IntPtr.Zero)
             {
+                if (IsZoomed(hWnd))
+                {
+                    ShowWindow(hWnd, SW_SHOWMAXIMIZED);
+                }
                 if (ForceForegroundWindow(hWnd))
                 {
                     if (close)

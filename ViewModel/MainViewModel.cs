@@ -1,4 +1,5 @@
 ﻿using ClosedXML;
+using CtrlCenter.AppRptModel;
 using CtrlCenter.DataModel;
 using CtrlCenter.Excel;
 using CtrlCenter.Interfaces;
@@ -29,20 +30,35 @@ namespace CtrlCenter.ViewModel
         private readonly ManagementEventWatcher _appWatcher;        
         private readonly RptHisManager _rptHisManager;
         private readonly AppSetting _appSetting;
-        public bool TopMost => _appSetting.TopMost;
+        public bool TopMost
+        {
+            get => _appSetting.TopMost;
+            set
+            {
+                if (_appSetting.TopMost != value)
+                {
+                    _appSetting.TopMost = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(TopMostBtnText));
+                }
+            }
+        }
+        public string TopMostBtnText => TopMost ? "取消置顶": " 置  顶 ";
         public bool ShowRptName => false;
 
         public ObservableCollection<AppViewModel> Apps { get; set; } = new ObservableCollection<AppViewModel>();
         public ObservableCollection<RptFileViewModel> RptFiles { get; set; } = new ObservableCollection<RptFileViewModel>();
         public ObservableCollection<RptHisViewModel>  RptHis { get; set; } = new ObservableCollection<RptHisViewModel>();
 
+        public ICommand ToggleTopmostCommand { get; }
+        public ICommand SimAppRptCommand { get; }
         public ICommand EditAppNameCommand { get; }
         public ICommand SelectAppLocCommand { get; }
         public ICommand DynamicActionCommand { get; }
         public ICommand MergeRptCommand { get; }
         public ICommand PreviewMergedRptCommand { get; }
         public ICommand RefreshRptCommand { get; }
-        public bool CanMergeRpt => RptFiles.Count >= 2;
+        public bool CanMergeRpt => RptFiles.Count >= 3;
         public bool CanPreviewMergedRpt => RptFiles.Count > 1;
         private AppModel[] InitApps()
         {
@@ -51,9 +67,10 @@ namespace CtrlCenter.ViewModel
                 new AppModel
                 {
                         Type = AppType.ZKC,
-                        Guid = "{B41B0EBC-95F3-45A5-AE4C-4A40696C198D}_is1",
-                        Name = "ZKC1601开关机械特性综合测试系统",
-                        Exe = "ZKC1601S",
+                        Guid = "{B15AE66C-F969-4402-BF2E-D719FE6B9DC2}}_is1",
+                        //Name = "ZKC1601开关机械特性综合测试系统",
+                        Name = "机械特性测试[ZKC]",
+                        Exe = "ZKC2601",
                         GetTxtAndSwitchNo = Util.GetTxtAndNoFromZkc,
                         RptPattern = "????????????_*.rpt",
                  },
@@ -61,7 +78,8 @@ namespace CtrlCenter.ViewModel
                     {
                         Type = AppType.LRT,
                         Guid = "{28692C18-A1DF-465B-9359-42C6F601243A}_is1",
-                        Name = "三通道回路电阻测试仪后台软件",
+                        //Name = "三通道回路电阻测试仪后台软件",
+                        Name = "回路电阻测试[LRT]",
                         Exe = "IRTest",
                         GetTxtAndSwitchNo = Util.GetTxtAndNoFromLrt,
                         RptPattern = "????????????_ir*.rpt",
@@ -70,7 +88,8 @@ namespace CtrlCenter.ViewModel
                     {
                         Type = AppType.HVC,
                         Guid = string.Empty,
-                        Name = "高压线缆测试系统",
+                        //Name = "高压线缆测试系统",
+                        Name = "高压线缆测试[HVC]",
                         Exe = "HighVoltCableTestSystem",
                         GetTxtAndSwitchNo = Util.GetTxtAndNoFromHvc,
                         RptPattern = "????????????*.csv",
@@ -85,6 +104,37 @@ namespace CtrlCenter.ViewModel
                 apps[2].Location = Path.GetDirectoryName(apps[2].FullName);
             }
             return apps;
+        }
+
+        public string _simSelectSwitchNo = "AAA";
+        public string SimSelectSwitchNo
+        {
+            get => _simSelectSwitchNo;
+            set
+            {
+                if (_simSelectSwitchNo != value)
+                {
+                    _simSelectSwitchNo = value;
+                    OnPropertyChanged();
+                    // 在这里处理选中省份的逻辑，比如更新关联数据
+                }
+            }
+        }
+        public IList<string> SimSwitchNos { get; set; } = new List<string>() { "AAA","BBB", "CCC", "DDD","EEE" };
+        public IList<AppType> SimsAppTypes { get; set; } = new List<AppType>() { AppType.ZKC, AppType.LRT, AppType.HVC };
+        public AppType _sSimSelectAppType = AppType.ZKC;
+        public AppType SimSelectAppType
+        {
+            get => _sSimSelectAppType;
+            set
+            {
+                if (_sSimSelectAppType != value)
+                {
+                    _sSimSelectAppType = value;
+                    OnPropertyChanged();
+                    // 在这里处理选中省份的逻辑，比如更新关联数据
+                }
+            }
         }
 
         private void InitAppViewModels(AppModel[] apps)
@@ -141,6 +191,7 @@ namespace CtrlCenter.ViewModel
                 bool merged = _latestMergedRpts.ContainsKey(file.FileNameLowerCase);
                 RptFiles.Add(new RptFileViewModel(file, merged));
             }
+            OnPropertyChanged(nameof(CanMergeRpt));
         }
         ManagementEventWatcher MonitorApps(IList<AppViewModel> apps)
         {
@@ -196,7 +247,7 @@ namespace CtrlCenter.ViewModel
                 if (string.IsNullOrEmpty(app.RptFolder)) continue;
 
                 if (_rptWatchers.ContainsKey(app.Model.Type)) continue;
-                Log.Information($"Monitor directory: {app.RptFolder}");
+                Log.Information($"Monitor: {app.RptFolder}");
                 var watcher = new FileSystemWatcher(app.RptFolder)
                 {
                     NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
@@ -215,7 +266,7 @@ namespace CtrlCenter.ViewModel
         private void OnFileCreated(AppViewModel model, FileSystemEventArgs e)
         {
             // 延迟一下，等待文件写入完成
-            Log.Information($"检测到[{model.Name}]创建报表文件: {Path.GetFileName(e.FullPath)}");
+            Log.Information($"Detect[{model.Name}]created report: {Path.GetFileName(e.FullPath)}");
         }
 
         private void OnFileChanged(AppViewModel model, FileSystemEventArgs e)
@@ -223,7 +274,7 @@ namespace CtrlCenter.ViewModel
             //文件修改时，Changed 事件可能会触发多次（因为写入过程中多次写磁盘），
             //建议在事件处理中加入防抖逻辑（比如延迟 500ms 再处理）。
             // 延迟一下，等待文件写入完成
-            Log.Information($"检测到[{model.Name}]报表被修改: {Path.GetFileName(e.FullPath)}");
+            Log.Information($"Detect[{model.Name}] edited report: {Path.GetFileName(e.FullPath)}");
             Task.Delay(500).ContinueWith(_ =>
             {
                 try
@@ -308,6 +359,8 @@ namespace CtrlCenter.ViewModel
                 RptHis.Add(new RptHisViewModel(entity));
             }
 
+            ToggleTopmostCommand = new RelayCommand<MainViewModel> (ExecuteToggleTopmost);
+            SimAppRptCommand = new RelayCommand<MainViewModel>(ExecuteSimAppRpt);
             EditAppNameCommand = new RelayCommand<AppViewModel>(ExecEditAddName);
             SelectAppLocCommand = new RelayCommand<AppViewModel>(ExecuteSelectAppLoc);
             DynamicActionCommand = new RelayCommand<AppViewModel>(ExecuteDynamicAction);
@@ -315,6 +368,30 @@ namespace CtrlCenter.ViewModel
             MergeRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecuteMergeRpt);
             PreviewMergedRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecutePreviewMergedRpt);
             RefreshRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecuteRefreshRptCommand);
+        }
+        private void ExecuteToggleTopmost(MainViewModel myself)
+        {
+            TopMost = !TopMost;
+        }
+        private void ExecuteSimAppRpt(MainViewModel myself)
+        {
+            var app = _appModels[(int)SimSelectAppType];
+            Log.Debug($"模拟报表 {SimSelectSwitchNo}/{SimSelectAppType}/{app.RptFolder}");
+            var rptFolder = app.RptFolder;
+            if (string.IsNullOrEmpty(rptFolder)) return;
+            if (SimSelectAppType == AppType.LRT)
+            {
+                Util.SimLrtReport(rptFolder, SimSelectSwitchNo);
+
+            }
+            if (SimSelectAppType == AppType.ZKC)
+            {
+                Util.SimZkcReport(rptFolder, SimSelectSwitchNo);
+            }
+            if (SimSelectAppType == AppType.HVC)
+            {
+                Util.SimHvcReport(rptFolder, SimSelectSwitchNo);
+            }
         }
         private void ExecuteMergeRpt(ObservableCollection<RptFileViewModel> rptFiles)
         {
@@ -434,7 +511,7 @@ namespace CtrlCenter.ViewModel
             {
                 var close = model.ActionText.Contains("关闭");
                 WindowActivator.ActivateWindow(app.Process, close);
-                if (!close)
+                if (!close && TopMost) //最顶端时就最小化
                 {
                     WindowActivator.MinimizeOrRestoreProcessWindow(Process.GetCurrentProcess());
                 }
@@ -456,6 +533,7 @@ namespace CtrlCenter.ViewModel
             using (var dlg = new FolderBrowserDialog())
             {
                 dlg.Description = "选择程序的安装目录";
+                dlg.UseDescriptionForTitle = true;
                 dlg.RootFolder = Environment.SpecialFolder.MyComputer;
                 dlg.ShowNewFolderButton = false;
                 if (dlg.ShowDialog() == DialogResult.OK)

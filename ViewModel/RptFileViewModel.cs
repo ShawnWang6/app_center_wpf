@@ -41,6 +41,11 @@ namespace CtrlCenter.ViewModel
             get => _merged ? $"{_model.FileNameLowerCase}(已合并)" : _model.FileNameLowerCase;
         }
 
+        public string Merged
+        {
+            get => _merged ? "是":"否";
+        }
+
         public DateTime TimeStamp
         {
             get => Util.ParseYyMmDdHhMmSs(_model.TimeStamp);
