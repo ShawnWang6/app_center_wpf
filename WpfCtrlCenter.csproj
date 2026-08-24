@@ -11,6 +11,12 @@
     <AssemblyName>CtrlCenter.Wpf</AssemblyName>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Images\**" />
+    <EmbeddedResource Remove="Images\**" />
+    <None Remove="Images\**" />
+    <Page Remove="Images\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- SQLite 核心包 -->

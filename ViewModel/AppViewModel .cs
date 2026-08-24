@@ -75,22 +75,6 @@ namespace CtrlCenter.ViewModel
                 }
             }
         }
-
-        
-
-        public bool CanEditName
-        {
-            get => _model.CanEditName;
-            set
-            {
-                if (_model.CanEditName != value)
-                {
-                    _model.CanEditName = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
         public bool CanSelectRptLoc
         {
             get => _model.CanSelectRptLoc;
@@ -126,7 +110,17 @@ namespace CtrlCenter.ViewModel
                 {
                     _model.RptFolder = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(SetRptFolderText));
                 }
+            }
+        }
+
+        public string SetRptFolderText
+        {
+            get
+            {
+                if (!CanSelectRptLoc) return string.Empty;
+                return string.IsNullOrEmpty(RptFolder) ? "选择报表目录" : "更改报表目录";
             }
         }
 

@@ -17,7 +17,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace CtrlCenter
+namespace CtrlCenter.Tools
 {
     public static class Util
     {
@@ -310,7 +310,7 @@ namespace CtrlCenter
             if (subKey == null) { return valueDefault; }
             object rawValue = subKey.GetValue(key);
             if (rawValue == null) { return valueDefault; }
-            return ConvertValue<T>(rawValue, valueDefault);
+            return ConvertValue(rawValue, valueDefault);
         }
 
         // 泛型写入方法
@@ -618,7 +618,7 @@ namespace CtrlCenter
                     if (close)
                     {
                         var popWnd = GetLastActivePopup(hWnd);
-                        Log.Debug($"活动窗口是主窗口: {(popWnd == hWnd)}");
+                        Log.Debug($"活动窗口是主窗口: {popWnd == hWnd}");
                         if (popWnd == hWnd)
                         {
                             PostMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);

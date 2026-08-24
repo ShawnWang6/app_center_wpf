@@ -1,6 +1,8 @@
 ﻿using ClosedXML.Excel;
 using CtrlCenter.AppRptModel;
 using CtrlCenter.DataModel;
+using CtrlCenter.Tools;
+using DocumentFormat.OpenXml.Office2016.Excel;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Serilog;
 using System;
@@ -51,9 +53,9 @@ namespace CtrlCenter.Excel
         /// <param name="sheetName">模板sheet名</param>
         public static string GenerateReport(string templatePath, string outputPath,
                                    IDictionary<AppType, RptFile> rpts,
-                                   string sheetName = "lrt_hvt_zkc_at"
-                                   )
+                                   ExcelCfgModel cfg = null)
         {
+            if(cfg == null) cfg = new ExcelCfgModel();
             string errMsg = string.Empty;
             var replaces = new Dictionary<string, string>()
             {
@@ -117,10 +119,9 @@ namespace CtrlCenter.Excel
             using var workbook = new XLWorkbook(templatePath);
             try
             {
-                var sheet = workbook.Worksheet(sheetName);
-                //报表头及固定行填充
-                string titleRange = "A2:M7"; //TODO 根据实际模板调整范围
-                var targetCells = sheet.Range(titleRange).Cells();
+                var sheet = workbook.Worksheet(cfg.TemplSheetName);
+                //报表头及固定行填充 "A2:M7";
+                var targetCells = sheet.Range(cfg.TitleRange).Cells();
                 foreach (var cell in targetCells)
                 {
                     var text = cell.GetString();
@@ -146,10 +147,10 @@ namespace CtrlCenter.Excel
                 if (atRptModel != null)
                 {
                     //TODO 根据实际模板调整模板行号-C数据
-                    const int templateTitleIndex = 9;
-                    const int templateRowIndex = 10;
-                    const int maxRowOfFirstPage = 10;
-                    const int maxRowOfOtherPage = 20;
+                    int templateTitleIndex = cfg.TemplTitleIndex;
+                    int templateRowIndex = cfg.TemplRowIndex;
+                    int maxRowOfFirstPage = cfg.MaxRowOfPage1;
+                    int maxRowOfOtherPage = cfg.MaxRowOfPagex;
 
                     // 1. 获取模板行标题和模板行
                     IXLRow templRowTitle = sheet.Row(templateTitleIndex);
@@ -231,6 +232,18 @@ namespace CtrlCenter.Excel
                     }
                 }
                 // ---------- 6. 保存文件 ----------
+                //删除其他sheet
+                DeleteSheetsExcept(workbook, new List<string> { cfg.TemplSheetName });
+                if (!cfg.UseRawSheetName)
+                {
+                    sheet.Name = $"开关-{atRptModel.RptCfg.SwitchNo}";
+                }
+                // 假设你有一个名为 ws 的工作表 (IXLWorksheet)
+                // 在页脚的正中位置添加 "第 n/m 页" 的格式
+                sheet.PageSetup.Footer.Center.AddText("第", XLHFOccurrence.AllPages);
+                sheet.PageSetup.Footer.Center.AddText(XLHFPredefinedText.PageNumber, XLHFOccurrence.AllPages);
+                sheet.PageSetup.Footer.Center.AddText("/", XLHFOccurrence.AllPages);
+                sheet.PageSetup.Footer.Center.AddText(XLHFPredefinedText.NumberOfPages, XLHFOccurrence.AllPages);
                 workbook.SaveAs(outputPath);
             }
             catch(Exception ex)
@@ -243,6 +256,21 @@ namespace CtrlCenter.Excel
             }
             return errMsg;
         }
+
+        public static void DeleteSheetsExcept(IXLWorkbook workbook, List<string> sheetsToKeep)
+        {
+            // 关键步骤：从后往前遍历
+            for (int i = workbook.Worksheets.Count; i >= 1; i--)
+            {
+                var sheet = workbook.Worksheet(i);
+                // 如果当前工作表不在“保留列表”中，则删除
+                if (!sheetsToKeep.Contains(sheet.Name))
+                {
+                    sheet.Delete();
+                }
+            }
+        }
+
         /// <summary>
         /// 将 List<string> 数据填充到指定行的各列（从第1列开始）
         /// </summary>

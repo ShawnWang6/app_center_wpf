@@ -5,6 +5,7 @@ using CtrlCenter.Excel;
 using CtrlCenter.Interfaces;
 using CtrlCenter.Logic;
 using CtrlCenter.Storage;
+using CtrlCenter.Tools;
 using DocumentFormat.OpenXml.EMMA;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Serilog;
@@ -15,6 +16,7 @@ using System.IO;
 using System.Linq;
 using System.Management;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -46,6 +48,18 @@ namespace CtrlCenter.ViewModel
                 }
             }
         }
+        public string AppTitle
+        {
+            get => _appSetting.AppTitle?? "高压开关试验报表管理平台";
+            set
+            {
+                if (_appSetting.AppTitle != value)
+                {
+                    _appSetting.AppTitle = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         public bool ShowSimTool
         {
             get => _appSetting.Debug??false;
@@ -58,7 +72,7 @@ namespace CtrlCenter.ViewModel
                 }
             }
         }
-        public string TopMostBtnText => TopMost ? "取消置顶": " 置  顶 ";
+        public string TopMostBtnText => TopMost ? "取消置顶": "窗口置顶";
         public bool ShowRptName => false;
 
         public ObservableCollection<AppViewModel> Apps { get; set; } = new ObservableCollection<AppViewModel>();
@@ -86,8 +100,8 @@ namespace CtrlCenter.ViewModel
         }
 
         public ICommand ToggleTopmostCommand { get; }
+        public ICommand AppSettingCommand { get; }
         public ICommand SimAppRptCommand { get; }
-        public ICommand EditAppNameCommand { get; }
         public ICommand SelectAppLocCommand { get; }
         public ICommand DynamicActionCommand { get; }
         public ICommand MergeRptCommand { get; }
@@ -106,7 +120,7 @@ namespace CtrlCenter.ViewModel
                         Type = AppType.ZKC,
                         Guid = "{B15AE66C-F969-4402-BF2E-D719FE6B9DC2}}_is1",
                         //Name = "ZKC1601开关机械特性综合测试系统",
-                        Name = "机械特性测试[ZKC]",
+                        Name = " 机械特性测试仪[ZKC]",
                         Exe = "ZKC2601",
                         GetTxtAndSwitchNo = Util.GetTxtAndNoFromZkc,
                         RptPattern = "????????????_*.rpt",
@@ -116,7 +130,7 @@ namespace CtrlCenter.ViewModel
                         Type = AppType.LRT,
                         Guid = "{28692C18-A1DF-465B-9359-42C6F601243A}_is1",
                         //Name = "三通道回路电阻测试仪后台软件",
-                        Name = "回路电阻测试[LRT]",
+                        Name = " 回路电阻测试仪[LRT]",
                         Exe = "IRTest",
                         GetTxtAndSwitchNo = Util.GetTxtAndNoFromLrt,
                         RptPattern = "????????????_ir*.rpt",
@@ -126,7 +140,7 @@ namespace CtrlCenter.ViewModel
                         Type = AppType.HVC,
                         Guid = string.Empty,
                         //Name = "高压线缆测试系统",
-                        Name = "高压线缆测试[HVC]",
+                        Name = " 高压线缆测试仪[HVC]",
                         Exe = "HighVoltCableTestSystem",
                         GetTxtAndSwitchNo = Util.GetTxtAndNoFromHvc,
                         RptPattern = "????????????*.csv",
@@ -398,8 +412,8 @@ namespace CtrlCenter.ViewModel
             }
 
             ToggleTopmostCommand = new RelayCommand<MainViewModel> (ExecuteToggleTopmost);
-            SimAppRptCommand = new RelayCommand<MainViewModel>(ExecuteSimAppRpt);
-            EditAppNameCommand = new RelayCommand<AppViewModel>(ExecEditAddName);
+            AppSettingCommand = new RelayCommand<MainViewModel>(ExecuteAppSetting);
+            SimAppRptCommand = new RelayCommand<MainViewModel>(ExecuteSimAppRpt);            
             SelectAppLocCommand = new RelayCommand<AppViewModel>(ExecuteSelectAppLoc);
             DynamicActionCommand = new RelayCommand<AppViewModel>(ExecuteDynamicAction);
 
@@ -413,6 +427,10 @@ namespace CtrlCenter.ViewModel
         private void ExecuteToggleTopmost(MainViewModel myself)
         {
             TopMost = !TopMost;
+        }
+        private void ExecuteAppSetting(MainViewModel myself)
+        {
+            
         }
         private void ExecuteSimAppRpt(MainViewModel myself)
         {
@@ -436,6 +454,16 @@ namespace CtrlCenter.ViewModel
         }
         private void ExecuteMergeRpt(ObservableCollection<RptFileViewModel> rptFiles)
         {
+            var mergedTypes = RptFiles.Where(rpt => rpt.Merged == "是").Select(rpt => rpt.FileType).ToList();
+            if (mergedTypes.Count > 0)
+            {
+                string result = string.Join(",", mergedTypes);
+                if(System.Windows.MessageBox.Show($"以下报表已经合并过: {result}, 继续合并?", "提示", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
+
             var (ok, err, entity) = _rptHisManager.SaveRptfiles(_rptFileManager.SwitchFiles);
             if (ok)
             {
@@ -514,7 +542,7 @@ namespace CtrlCenter.ViewModel
                 _previewFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "preview");
                 if (!Directory.Exists(_previewFolder)) Directory.CreateDirectory(_previewFolder);
             }
-            return Path.Combine(_tmpFold, $"{Guid.NewGuid().ToString()}.xlsx");
+            return Path.Combine(_previewFolder, $"{Guid.NewGuid().ToString()}.xlsx");
         }
         private void ExecuteOpenMergedRpt(ObservableCollection<RptHisViewModel> rptHis)
         {            
@@ -544,7 +572,7 @@ namespace CtrlCenter.ViewModel
 
                 if (!_hasXlsAssociatedApp)
                 {
-                    System.Windows.MessageBox.Show($"报表文件已生成，未发现关联程序打开它: {printFile}");
+                    System.Windows.MessageBox.Show($"报表文件已生成，未发现关联程序打开它(是否安装了Office或者WPS): \r\n报表文件:{printFile}");
                     return;
                 }
 
@@ -558,25 +586,52 @@ namespace CtrlCenter.ViewModel
             else
             {
                 var printFile = GenPrintXlsFile(SelectedRptHis[0].Model.Id);
-                try
+                if (!File.Exists(printFile))
                 {
-                    File.WriteAllBytes(printFile, excelBytes);
+                    try
+                    {
+                        File.WriteAllBytes(printFile, excelBytes);
+                    }
+                    catch (Exception ex)
+                    {
+                        var msg = $"生成报表文件失败!\r\n文件:{printFile}\r\n原因:{ex.Message}";
+                        Log.Error(msg);
+                        System.Windows.MessageBox.Show(msg);
+                        return;
+                    }
                 }
-                catch (Exception ex)
-                {
-                    System.Windows.MessageBox.Show($"生成史报表文件({printFile})失败, {ex.Message}");
-                    return;
-                }
-
+                
                 if (!_hasXlsAssociatedApp)
                 {
-                    System.Windows.MessageBox.Show($"报表文件已生成，未发现关联程序打开它: {printFile}");
+                    System.Windows.MessageBox.Show($"报表文件已生成，未发现关联程序打开它(是否安装了Office或者WPS): \r\n报表文件:{printFile}");
                     return;
                 }
                 var errMsg = TryOpenRptXls(printFile);
                 if (!string.IsNullOrEmpty(errMsg))
                 {
-                    System.Windows.MessageBox.Show(errMsg);
+                    var processIds = FileLockHelper.GetLockingProcessIds(printFile);
+                    if (processIds.Count == 0)
+                    {
+                        var msg = $"该文件未被任何进程占用，但是{errMsg}";
+                        Log.Error(msg);
+                        System.Windows.MessageBox.Show(msg);
+                        return;
+                    }
+                    try
+                    {
+                        using (var proc = Process.GetProcessById((int)processIds[0]))
+                        {
+                            Log.Warning($"报表文件({printFile})被进程({proc.Id})占用，尝试激活它");
+                            WindowActivator.ActivateWindow(proc);
+                        }
+                        
+                    }
+                    catch(Exception ex)
+                    {
+                        var msg = $"报表文件({printFile})未其他进程占用，未能操作该进程: {ex.Message}";
+                        Log.Warning(msg);
+                        System.Windows.MessageBox.Show(msg);
+                    }                    
                     return;
                 }
             }
@@ -596,12 +651,6 @@ namespace CtrlCenter.ViewModel
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-
-        private void ExecEditAddName(AppViewModel data)
-        {
-            // 编辑逻辑
-            System.Windows.MessageBox.Show($"编辑: {data.Name}");
         }
 
         private void ExecuteSelectAppLoc(AppViewModel model)
@@ -743,4 +792,6 @@ namespace CtrlCenter.ViewModel
         public void Execute(object parameter) => _execute((T)parameter);
         public event EventHandler CanExecuteChanged;
     }    
+
+    
 }

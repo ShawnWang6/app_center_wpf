@@ -10,7 +10,7 @@ namespace CtrlCenter.DataModel
 {
     public class AppSetting
     {
-        public string Name { get; set; }
+        public string AppTitle { get; set; }
 
         /// <summary>
         //  RptHisManager从数据库加载历史最大间隔

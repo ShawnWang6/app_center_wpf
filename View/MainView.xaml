@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:CtrlCenter.ViewModel"         
         mc:Ignorable="d"
-        Title="测试仪报表管理平台" Height="600" Width="1054"
+        Title="{Binding AppTitle}" Height="600" Width="1054"
         WindowStartupLocation="CenterScreen"
         FontFamily="Microsoft YaHei"
         Topmost="{Binding TopMost}"
@@ -27,6 +27,18 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <!-- 统一 Button 样式 -->
+        <Style TargetType="Button">
+            <Setter Property="Height" Value="48"/>
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <!--Setter Property="Foreground" Value="White"/-->
+            <!--Setter Property="Background" Value="#007ACC"/-->
+            <Setter Property="Padding" Value="12,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <!--Setter Property="BorderRadius" Value="4"/-->
+            <!-- .NET 6/7/8 支持 -->
+        </Style>
     </Window.Resources>
     
      <Grid Background="LightGray">
@@ -41,20 +53,29 @@
          <DockPanel Grid.Column="0">
             <StackPanel Orientation="Horizontal"   DockPanel.Dock="Top">
                 <Button Content="{Binding TopMostBtnText}"
-                        Command="{Binding ToggleTopmostCommand}"
+                        Command="{Binding ToggleTopmostCommand}"                        
+                        Width="128"                        
                         MouseRightButtonDown="TopmostButton_MouseRightButtonDown"
                         Margin="4,0" />
+                <Button Content="系统设置"
+                        Command="{Binding AppSettingCommand}"
+                        Height="48"
+                        Visibility="Hidden"
+                        Margin="4,0" />
                 <Button Content="模拟报表"
-                         Command="{Binding SimAppRptCommand}"
-                         Visibility="{Binding ShowSimTool, Converter={StaticResource BoolToVisibility}}" 
-                         Margin="4,0"/>
+                        Height="48"
+                        Command="{Binding SimAppRptCommand}"
+                        Visibility="{Binding ShowSimTool, Converter={StaticResource BoolToVisibility}}" 
+                        Margin="4,0"/>
                 <ComboBox ItemsSource="{Binding SimSwitchNos}" 
                           SelectedItem="{Binding SimSelectSwitchNo, UpdateSourceTrigger=PropertyChanged}"
                           Visibility="{Binding ShowSimTool, Converter={StaticResource BoolToVisibility}}" 
+                          Height="48"
                           Margin="4,0"/>
                 <ComboBox ItemsSource="{Binding SimsAppTypes}" 
                           SelectedItem="{Binding SimSelectAppType, UpdateSourceTrigger=PropertyChanged}"
                           Visibility="{Binding ShowSimTool, Converter={StaticResource BoolToVisibility}}" 
+                          Height="48"
                           Margin="4,0">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
@@ -62,8 +83,7 @@
                             <TextBlock Text="{Binding}" />
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
-                </ComboBox>
-
+                </ComboBox>                
             </StackPanel>
                     <!-- 2. 左上App DataGrid -->            
             <DataGrid AutoGenerateColumns="False" 
@@ -72,8 +92,34 @@
                       CanUserAddRows="False" 
                       HeadersVisibility="None"
                       ItemsSource="{Binding Apps}" 
+                      SelectionUnit="Cell"
+                      SelectionMode="Single"
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <!-- 去掉选中效果 -->
+                <DataGrid.Resources>
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderBrush" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="Black"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderBrush" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="Black"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.Resources>
+
                 <DataGrid.ColumnHeaderStyle>
                         <Style TargetType="{x:Type DataGridColumnHeader}">
                             <Setter Property="HorizontalContentAlignment" Value="Center" />
@@ -82,11 +128,12 @@
                 </DataGrid.ColumnHeaderStyle>
                 
                 <DataGrid.Columns>
+
                     <DataGridTextColumn 
                             Header="App名称"  
                             Binding="{Binding Name}" 
                             IsReadOnly="True"
-                            Width="280" >
+                            Width="180" >
                         <!-- 关键：使用 CellStyle 而不是 ElementStyle -->
                         <DataGridTextColumn.CellStyle>
                             <Style TargetType="DataGridCell">
@@ -132,19 +179,15 @@
                         </DataGridTextColumn.ElementStyle>                        
                     </DataGridTextColumn>
 
-                <DataGridTemplateColumn Header="操作" Width="240" IsReadOnly="True">
+                    <DataGridTemplateColumn Header="操作" Width="350" IsReadOnly="True">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                <Button Content="编辑名称" Margin="2,0" 
-                                        IsEnabled="{Binding CanEditName}"
-                                        Visibility="{Binding CanEditName, Converter={StaticResource BoolToVisibility}}" 
-                                        Command="{Binding DataContext.EditAppNameCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                        CommandParameter="{Binding}" />
-                                <Button Content="{Binding ActionText}" Margin="2,0"
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                <Button Margin="2,0"
+                                        Content="{Binding ActionText}"
                                         Command="{Binding DataContext.DynamicActionCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                         CommandParameter="{Binding}" />
-                                <Button Content="选择报表目录"  Margin="2,0"
+                                    <Button Content="{Binding SetRptFolderText}"  Margin="2,0"
                                         IsEnabled="{Binding CanSelectRptLoc}"
                                         Visibility="{Binding CanSelectRptLoc, Converter={StaticResource BoolToVisibility}}" 
                                         Command="{Binding DataContext.SelectAppLocCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
@@ -159,17 +202,18 @@
             <DockPanel>
                 <!-- 2. 左下-上功能按钮 -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
-                    <Label Content="最新开关试验报表" Margin="4,0" VerticalAlignment="Center"/>
-                    <Button Content=" 合并报表 " Margin="4,0" 
+                    <Label Content="最新试验报表" Margin="4,0" VerticalAlignment="Bottom"/>
+                    <Button Content="合并报表" Margin="1,0" 
                         IsEnabled="{Binding CanMergeRpt}" 
                         Command="{Binding MergeRptCommand}"
                         CommandParameter="{Binding RptFiles}" />
-                <Button Content=" 预览合并报表 " Margin="4,0"
+                <Button Content="预览报表 " Margin="1,0"
                         IsEnabled="{Binding CanPreviewMergedRpt}" 
                         Command="{Binding PreviewMergedRptCommand}"
                         CommandParameter="{Binding RptFiles}" />
-                <Button Content=" 刷新报表 " Margin="4,0"                        
+                <Button Content="刷新报表" Margin="1,0"
                         Command="{Binding RefreshRptCommand}"
+                        Visibility="Hidden"
                         CommandParameter="{Binding RptFiles}" />
             </StackPanel>
                 <!-- 2. 左下-下最近报表试图 -->
@@ -230,14 +274,15 @@
                 <!--TextBlock Text="右侧面板" VerticalAlignment="Center" HorizontalAlignment="Center" /-->
                 <DockPanel>
                 <StackPanel Orientation="Horizontal"   DockPanel.Dock="Top">
-                    <Label DockPanel.Dock="Top" Content="合并报表历史" HorizontalAlignment="Center"/>
-                    <Button Content=" 打印报表 " Margin="8,0"                        
+                    <Label DockPanel.Dock="Top" Content="合并报表历史记录" VerticalAlignment="Bottom"/>
+                    <Button Content="打印报表" Margin="1,0"                        
                         Command="{Binding OpenMergedRptCommand}"
                         IsEnabled="{Binding CanOpendMergedRpt}" 
                         CommandParameter="{Binding RptHis}" />
-                    <Button Content=" 导出报表 " Margin="8,0"                        
+                    <Button Content="导出报表" Margin="1,0"                        
                         Command="{Binding ExportMergedRptCommand}"
                         IsEnabled="{Binding CanExportMergedRpt}" 
+                        Visibility="Hidden"
                         CommandParameter="{Binding RptHis}" />
                 </StackPanel>
                         

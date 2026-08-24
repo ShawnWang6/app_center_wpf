@@ -14,6 +14,18 @@ namespace CtrlCenter.DataModel
         HVC,
     }
 
+    public class ExcelCfgModel
+    {
+        public int Version { get; set; } = 100;
+        public bool UseRawSheetName { get; set; }
+        public string TemplSheetName { get; set; } = "lrt_hvt_zkc_at";
+        public string TitleRange { get; set; } = "A2:M7";
+        public int TemplTitleIndex { get; set; } = 9;
+        public int TemplRowIndex { get; set; } = 10;
+        public int MaxRowOfPage1 { get; set; } = 33;
+        public int MaxRowOfPagex { get; set; } = 49;        
+    }
+
     public class AppModel
     {
         public AppType Type { get; set; }
@@ -35,9 +47,9 @@ namespace CtrlCenter.DataModel
                     return Type == AppType.HVC ? "搜索app" : "未安装";
                 return Process == null ? "启动app" : "关闭app";
             }
-        }
-        public Func<string, (string, string)> GetTxtAndSwitchNo { get; set; }
-        public bool CanEditName { get; set; } = false;        
+        }        
+        public Func<string, (string, string)> GetTxtAndSwitchNo { get; set; }        
         public bool CanSelectRptLoc { get; set; } = false;
+        public ExcelCfgModel ExcelCfgModel { get; set; }
     }
 }
