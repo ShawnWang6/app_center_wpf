@@ -7,15 +7,19 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
-    <RootNamespace>CtrlCenter</RootNamespace>
-    <AssemblyName>CtrlCenter.Wpf</AssemblyName>
+    <RootNamespace>ReportMaker</RootNamespace>
+    <AssemblyName>ReportMaker</AssemblyName>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationIcon>maker48x48.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Images\**" />
     <EmbeddedResource Remove="Images\**" />
     <None Remove="Images\**" />
     <Page Remove="Images\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="maker48x48.ico" />
   </ItemGroup>
 
   <ItemGroup>

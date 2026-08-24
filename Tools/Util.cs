@@ -597,6 +597,32 @@ namespace CtrlCenter.Tools
         private const int SW_SHOWMAXIMIZED = 3;
         private const int SW_SHOWMINIMIZED = 2;
 
+        public static void ActivateExistingWindow()
+        {
+            try
+            {
+                // 获取当前所有同名进程
+                string processName = Process.GetCurrentProcess().ProcessName;
+                Process[] processes = Process.GetProcessesByName(processName);
+
+                foreach (Process proc in processes)
+                {
+                    // 跳过当前进程（因为当前进程尚未显示主窗口）
+                    if (proc.Id == Process.GetCurrentProcess().Id)
+                        continue;
+
+                    if (proc.MainWindowHandle != IntPtr.Zero)
+                    {
+                        IntPtr hWnd = proc.MainWindowHandle;
+                        ShowWindow(hWnd, SW_RESTORE);
+                        SetForegroundWindow(hWnd);
+                        return;
+                    }
+                }
+            }
+            catch { }
+        }
+
         public static bool ActivateWindow(Process process, bool close = false)
         {
             if (process == null) return false;

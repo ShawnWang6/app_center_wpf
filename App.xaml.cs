@@ -2,6 +2,7 @@
 using CtrlCenter.DataModel;
 using CtrlCenter.Interfaces;
 using CtrlCenter.Storage;
+using CtrlCenter.Tools;
 using CtrlCenter.View;
 using CtrlCenter.ViewModel;
 using Microsoft.Extensions.Configuration;
@@ -19,13 +20,22 @@ namespace CtrlCenter
 {
     public partial class App : System.Windows.Application
     {
+        bool firstInstance = false;
         public static IConfiguration Configuration { get; private set; }
         public static IServiceProvider ServiceProvider { get; private set; }
         public static LoggingLevelSwitch FileLevelSwitch { get; } = new LoggingLevelSwitch(LogEventLevel.Information);
         public static LoggingLevelSwitch DebugLevelSwitch { get; } = new LoggingLevelSwitch(LogEventLevel.Debug);
         protected override void OnStartup(StartupEventArgs e)
         {
-            base.OnStartup(e);
+            base.OnStartup(e);            
+            var singletonMutex = new Mutex(true, "Global\\__?ReportMaker2026?__", out firstInstance);
+            if (!firstInstance)
+            {
+                try { singletonMutex.Dispose(); } catch { }
+                WindowActivator.ActivateExistingWindow();
+                Shutdown(0);                
+                return;
+            }
 
 
             var configuration = new ConfigurationBuilder()
