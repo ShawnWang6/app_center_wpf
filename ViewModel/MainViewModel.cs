@@ -36,7 +36,7 @@ namespace CtrlCenter.ViewModel
         private readonly AppSetting _appSetting;
         public readonly bool _hasXlsAssociatedApp = Util.HasAssociatedApp(".xlsx");
         private readonly string ExcelRptTemplate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "template.xlsx");
-        private readonly string Version = Assembly.GetExecutingAssembly().GetName().Version.ToString();
+        private readonly string Version = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).FileVersion;
         public bool TopMost
         {
             get => _appSetting.TopMost;
