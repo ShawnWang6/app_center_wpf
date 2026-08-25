@@ -43,6 +43,7 @@ namespace CtrlCenter.ViewModel
                 if (_appSetting.TopMost != value)
                 {
                     _appSetting.TopMost = value;
+                    Util.SaveAppSetting(_appSetting);
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(TopMostBtnText));
                 }

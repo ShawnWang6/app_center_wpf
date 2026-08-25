@@ -156,6 +156,19 @@ namespace CtrlCenter.Tools
                 return new AppSetting();
             }
         }
+        public static void SaveAppSetting(AppSetting appSetting)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(appSetting);
+                var file = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+                File.WriteAllText(file, json, Encoding.UTF8);
+            }
+            catch
+            {
+                
+            }
+        }
 
         public static T BuildExcelRptModel<T>(RptFile file) where T : class
         {

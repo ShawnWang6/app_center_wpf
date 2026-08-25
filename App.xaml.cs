@@ -52,7 +52,7 @@ namespace CtrlCenter
                 return;
             }
 
-            ClearTempFiles()
+            ClearTempFiles();
 
 
             //var configuration = new ConfigurationBuilder()

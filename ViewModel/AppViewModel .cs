@@ -111,8 +111,14 @@ namespace CtrlCenter.ViewModel
                     _model.RptFolder = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(SetRptFolderText));
+                    OnPropertyChanged(nameof(RptFolderTip));
                 }
             }
+        }
+
+        public string RptFolderTip
+        {
+            get => string.IsNullOrEmpty(_model.RptFolder) ? "未设置报表目录" : $"报表目录：{_model.RptFolder}";
         }
 
         public string SetRptFolderText

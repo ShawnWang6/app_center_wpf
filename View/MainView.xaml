@@ -189,6 +189,7 @@
                                         CommandParameter="{Binding}" />
                                     <Button Content="{Binding SetRptFolderText}"  Margin="2,0"
                                         IsEnabled="{Binding CanSelectRptLoc}"
+                                        ToolTip="{Binding RptFolderTip}"
                                         Visibility="{Binding CanSelectRptLoc, Converter={StaticResource BoolToVisibility}}" 
                                         Command="{Binding DataContext.SelectAppLocCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                         CommandParameter="{Binding}" />
