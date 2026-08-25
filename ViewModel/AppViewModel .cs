@@ -1,4 +1,5 @@
 ﻿using CtrlCenter.DataModel;
+using CtrlCenter.Tools;
 using DocumentFormat.OpenXml.EMMA;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -98,6 +99,19 @@ namespace CtrlCenter.ViewModel
                     _model.FullName = value;
                     OnPropertyChanged();
                 }
+            }
+        }
+
+        
+        public string Version
+        {
+            get 
+            {                
+                if (_model.Type == AppType.ZKC || _model.Type == AppType.LRT)
+                {
+                    return Util.GetAppFileVersion(_model);
+                }
+                return string.Empty;
             }
         }
 

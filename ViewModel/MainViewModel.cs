@@ -15,6 +15,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Management;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -35,6 +36,7 @@ namespace CtrlCenter.ViewModel
         private readonly AppSetting _appSetting;
         public readonly bool _hasXlsAssociatedApp = Util.HasAssociatedApp(".xlsx");
         private readonly string ExcelRptTemplate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "template.xlsx");
+        private readonly string Version = Assembly.GetExecutingAssembly().GetName().Version.ToString();
         public bool TopMost
         {
             get => _appSetting.TopMost;
@@ -51,7 +53,7 @@ namespace CtrlCenter.ViewModel
         }
         public string AppTitle
         {
-            get => _appSetting.AppTitle?? "高压开关试验报表管理平台";
+            get => _appSetting.AppTitle?? $"高压开关试验报表管理平台(V{Version})";
             set
             {
                 if (_appSetting.AppTitle != value)

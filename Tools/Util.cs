@@ -156,6 +156,43 @@ namespace CtrlCenter.Tools
                 return new AppSetting();
             }
         }
+        public static string GetAppFileVersion(AppModel app)
+        {            
+            try
+            {
+                if (string.IsNullOrEmpty(app.FullName))
+                {
+                    return app.Type == AppType.HVC ? "未指定" : "未安装";
+                }
+                if (!File.Exists(app.FullName))
+                {
+                    return app.Type == AppType.HVC ? "被删除" : "被删除";
+                }
+                FileVersionInfo info = FileVersionInfo.GetVersionInfo(app.FullName);
+                //Major.Minor.Build.Revision
+                string version = info.FileVersion;      // 文件版本
+                var result = $"V{version}";
+                if (app.Type == AppType.ZKC)
+                {
+                    //3.1.7
+                    var support = info.FileMajorPart >= 3 && info.FileMinorPart >= 1 && info.FileBuildPart >= 7;
+                    return support ? string.Empty : $"{result} 不支持";
+                }
+                if (app.Type == AppType.LRT)
+                {
+                    //2.1.1
+                    var support = info.FileMajorPart >= 2 && info.FileMinorPart >= 1 && info.FileBuildPart >= 1;
+                    return support ? string.Empty : $"{result} 不支持";
+                }
+                return string.Empty;
+                //string productVersion = fileVersionInfo.ProductVersion; // 产品版本
+                //string assemblyVersion = fileVersionInfo.FileVersion;   // 有时相同
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         public static void SaveAppSetting(AppSetting appSetting)
         {
             try

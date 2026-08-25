@@ -127,15 +127,9 @@
                         </Style>
                 </DataGrid.ColumnHeaderStyle>
                 
-                <DataGrid.Columns>
-
-                    <DataGridTextColumn 
-                            Header="App名称"  
-                            Binding="{Binding Name}" 
-                            IsReadOnly="True"
-                            Width="180" >
-                        <!-- 关键：使用 CellStyle 而不是 ElementStyle -->
-                        <DataGridTextColumn.CellStyle>
+                <DataGrid.Columns>                   
+                    <DataGridTemplateColumn Header="App" Width="180" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellStyle>
                             <Style TargetType="DataGridCell">
                                 <!-- 设置默认背景 -->
                                 <Setter Property="Background" Value="Transparent" />
@@ -143,47 +137,45 @@
                                 <Style.Triggers>
                                     <!-- 根据枚举值改变整个 Cell 的背景 -->
                                     <DataTrigger
-                                        Binding="{Binding Status}" 
-                                        Value="{x:Static vm:AppStatus.NotInstalled}">
+                Binding="{Binding Status}" 
+                Value="{x:Static vm:AppStatus.NotInstalled}">
                                         <Setter Property="Background" Value="Red" />
                                     </DataTrigger>
 
                                     <DataTrigger Binding="{Binding Status}" 
-                                        Value="{x:Static vm:AppStatus.StoppedWithLoc}">
+                Value="{x:Static vm:AppStatus.StoppedWithLoc}">
                                         <Setter Property="Background" Value="Orange" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Status}" 
-                                        Value="{x:Static vm:AppStatus.StoppedWithNoLoc}">
+                Value="{x:Static vm:AppStatus.StoppedWithNoLoc}">
                                         <Setter Property="Background" Value="Orange" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Status}" 
-                                        Value="{x:Static vm:AppStatus.RunningWithLoc}">
+                Value="{x:Static vm:AppStatus.RunningWithLoc}">
                                         <Setter Property="Background" Value="LightGreen" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Status}" 
-                                        Value="{x:Static vm:AppStatus.RunningWithNoLoc}">
+                Value="{x:Static vm:AppStatus.RunningWithNoLoc}">
                                         <Setter Property="Background" Value="LightGreen" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </DataGridTextColumn.CellStyle>
-                        <!-- 添加 ElementStyle，强制让 TextBlock 垂直居中 -->
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="VerticalAlignment" Value="Center" />
-                                <!-- 可选：如果你也希望文本水平居中，可以取消下面一行的注释 -->
-                                <!-- <Setter Property="HorizontalAlignment" Value="Center" /> -->
-                                <!-- 设置默认背景为透明，否则触发器可能无法覆盖 -->
-                                <Setter Property="Background" Value="Transparent" />
-                            </Style>
-                        </DataGridTextColumn.ElementStyle>                        
-                    </DataGridTextColumn>
-
+                        </DataGridTemplateColumn.CellStyle>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}"                                            
+                                           Foreground="Black"
+                                           Margin="1,0" 
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTemplateColumn Header="操作" Width="350" IsReadOnly="True">
+
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                <Button Margin="2,0"
+                                <Button Margin="1,0"
                                         Content="{Binding ActionText}"
                                         Command="{Binding DataContext.DynamicActionCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                         CommandParameter="{Binding}" />
@@ -193,6 +185,7 @@
                                         Visibility="{Binding CanSelectRptLoc, Converter={StaticResource BoolToVisibility}}" 
                                         Command="{Binding DataContext.SelectAppLocCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                         CommandParameter="{Binding}" />
+                                    <TextBlock Text="{Binding Version}" Margin="1,0" VerticalAlignment="Center" Foreground="Red" />
                             </StackPanel>
                         </DataTemplate>
                      </DataGridTemplateColumn.CellTemplate>
