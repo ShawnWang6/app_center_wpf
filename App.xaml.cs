@@ -28,16 +28,20 @@ namespace CtrlCenter
 
         void ClearTempFiles()
         {
-            var tempPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "preview");
-            string[] files = Directory.GetFiles(tempPath, "*.xlsx");
-            foreach (string file in files)
-            {
-                if (File.Exists(file))
+            try {
+                var tempPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "preview");
+                if (!Directory.Exists(tempPath)) return;
+                string[] files = Directory.GetFiles(tempPath, "*.xlsx");
+                foreach (string file in files)
                 {
-                    try { File.Delete(file); }
-                    catch { }
+                    if (File.Exists(file))
+                    {
+                        try { File.Delete(file); }
+                        catch { }
+                    }
                 }
             }
+            catch () { }
 
         }
         protected override void OnStartup(StartupEventArgs e)
