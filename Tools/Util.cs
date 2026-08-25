@@ -135,7 +135,7 @@ namespace CtrlCenter.Tools
         {
             var now = DateTime.Now;
             var testTime = now.ToString("yyyy-MM-dd HH:mm:ss");            
-            var templJson = File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "zkc_rpt_template.rpt"));
+            var templJson = File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "zkcrpt.dat"));
             var model = JsonSerializer.Deserialize<ZkcAtRptModel>(templJson);
             model.TestTime = testTime;
             model.RptCfg.SwitchNo = switchNo;

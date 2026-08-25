@@ -12,6 +12,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <NeutralLanguage>zh</NeutralLanguage>
+	<ApplicationManifest>app.manifest</ApplicationManifest>
 	<!-- 👇 在这里配置版本号 -->
     <!--AssemblyVersion>1.0.0.0</AssemblyVersion--><!-- 程序集版本：CLR 加载时使用，应精确 -->
     <FileVersion>1.0.1.0</FileVersion><!-- 文件版本：Windows 文件属性中显示 -->
@@ -24,7 +25,7 @@
     <Page Remove="Images\**" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="maker48x48.ico" />
+    <Content Include="app.ico" />
   </ItemGroup>
 
   <ItemGroup>
@@ -48,11 +49,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="rpt_template.xlsx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="zkc_rpt_template.rpt">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    
   </ItemGroup>
+  <Target Name="CopyAndRenameReportTemplate" AfterTargets="AfterBuild">
+    <Copy SourceFiles="$(ProjectDir)rpt_template.xlsx"
+          DestinationFiles="$(OutDir)template.xlsx"
+          SkipUnchangedFiles="true" />
+	<Copy SourceFiles="$(ProjectDir)zkc_rpt_template.rpt"
+          DestinationFiles="$(OutDir)zkcrpt.dat"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

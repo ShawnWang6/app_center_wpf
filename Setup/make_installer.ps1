@@ -12,11 +12,14 @@ if (!(Test-Path $targetExe)){
 	"Not found target file $targetExe"
 	EXIT 1
 } 
-Copy-Item $targetExe $PSScriptRoot\publish\ 
+Copy-Item $outputFolder\*.exe $PSScriptRoot\publish\ 
 Copy-Item $outputFolder\*.dll $PSScriptRoot\publish\ 
 Copy-Item $outputFolder\*.json $PSScriptRoot\publish\ 
+Copy-Item $outputFolder\*.dat $PSScriptRoot\publish\
+Copy-Item $outputFolder\*.xlsx $PSScriptRoot\publish\
 Copy-Item $outputFolder\runtimes $PSScriptRoot\publish\ -Recurse
 Copy-Item $PSScriptRoot\..\app.ico $PSScriptRoot\publish\app.ico
+
 
 #######################动态修改ISS脚本中的版本号#################################
 # 从 ver.txt 读取版本号: Version:[1.0.0.0]
@@ -47,6 +50,7 @@ if(!($?)){
 	EXIT 1
 }
 
+Remove-Item "$PSScriptRoot\SetupUtf8.iss"
 
 $installerName = Get-ChildItem -Path "$PSScriptRoot\Release" -Filter "*.exe" | 
              Sort-Object -Property CreationTime -Descending | 

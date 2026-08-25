@@ -6,11 +6,9 @@
 #define MyAppPublisher "tomatoyou@139.com"
 #define MyAppURL "https://github.com/ShawnWang6/app_center_wpf"
 #define MyAppExeName "ReportMaker.exe"
-
+#define MyAppId "{CD5F7178-4144-4199-AB19-D0D488282A2B}"
 [Setup]
-; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
-; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-AppId={{95F5EA54-A47D-499F-96CA-1EC79A59493A}
+AppId={{CD5F7178-4144-4199-AB19-D0D488282A2B}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 ;VersionInfoVersion={#MyAppVersion}
@@ -20,11 +18,12 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={autopf}\zhuhaizg\ZKC1601V1
+DefaultDirName={autopf}\zhuhaizg\ReportMaker
 ; DisableProgramGroupPage=yes
 DefaultGroupName=珠海正冠科技
 ; Uncomment the following line to run in non admainistrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
+;PrivilegesRequired=admin
 OutputDir= .\Release
 OutputBaseFilename=ReportMakerSetupV{#MyAppVersion}
 SetupIconFile=.\publish\app.ico
@@ -71,24 +70,35 @@ end;
 
 function ParseVersion(VersionStr: String; var Major, Minor, Build: Integer): Boolean;
 var
-  Pos1, Pos2: Integer;
+  Parts: array of String;
+  Temp: String;
+  PosDot: Integer;
 begin
   Result := True;
   try
-    Pos1 := Pos('.', VersionStr);
-    Major := StrToInt(Copy(VersionStr, 1, Pos1 - 1));
+    // 初始化数组
+    SetArrayLength(Parts, 0);
+    Temp := VersionStr;
     
-    Pos2 := PosEx('.', VersionStr, Pos1 + 1);
-    if Pos2 > 0 then
+    // 循环分割字符串
+    while Pos('.', Temp) > 0 do
     begin
-      Minor := StrToInt(Copy(VersionStr, Pos1 + 1, Pos2 - Pos1 - 1));
-      Build := StrToInt(Copy(VersionStr, Pos2 + 1, Length(VersionStr)));
-    end
-    else
-    begin
-      Minor := StrToInt(Copy(VersionStr, Pos1 + 1, Length(VersionStr)));
-      Build := 0;
+      PosDot := Pos('.', Temp);
+      SetArrayLength(Parts, GetArrayLength(Parts) + 1);
+      Parts[GetArrayLength(Parts) - 1] := Copy(Temp, 1, PosDot - 1);
+      Temp := Copy(Temp, PosDot + 1, Length(Temp));
     end;
+    // 添加最后一段
+    SetArrayLength(Parts, GetArrayLength(Parts) + 1);
+    Parts[GetArrayLength(Parts) - 1] := Temp;
+
+    // 赋值（安全取前3段）
+    Major := StrToInt(Parts[0]);
+    Minor := StrToInt(Parts[1]);
+    if GetArrayLength(Parts) >= 3 then
+      Build := StrToInt(Parts[2])
+    else
+      Build := 0;
   except
     Result := False;
   end;
@@ -122,6 +132,16 @@ begin
    Result := False;
 end;
 
+// ============ 新增：检查是否为升级安装 ============
+function IsUpgradeInstall(): Boolean;
+var
+  AppGuid: String;
+  installedVersion: String;
+begin
+  AppGuid := '{#MyAppId}';
+  Result := CheckUninstallKey(HKLM, AppGuid, installedVersion) or
+            CheckUninstallKey(HKCU, AppGuid, installedVersion);
+end;
 
 function InitializeSetup(): Boolean;
 var
@@ -131,7 +151,8 @@ var
   majorOld, minorOld, buildOld: Integer;
 begin
   Result := True;  
-
+    
+  
   if MutexExists('Global\__?ReportMaker2026?__') then
   begin
 	MsgBox('目标程序[{#SetupSetting("AppName")}]正在运行，安装前必须关闭它。', mbError, MB_OK);	
@@ -140,7 +161,7 @@ begin
   end;
   
   // 检查所有可能的注册表位置 
-  AppGuid := ExpandConstant('{#SetupSetting("AppId")}');  
+  AppGuid := '{#MyAppId}';
   if CheckUninstallKey(HKLM, AppGuid, installedVersion) or
      CheckUninstallKey(HKCU, AppGuid, installedVersion) then
   begin
@@ -160,6 +181,14 @@ begin
         Result := False;
       end;
     end;
+  end;
+end;
+
+// ============ 新增：在文件复制完成后执行配置复制 ============
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
   end;
 end;
 
@@ -185,4 +214,4 @@ Name: "{autoprograms}\珠海正冠科技\{#MyAppName}"; Filename: "{app}\{#MyApp
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runascurrentuser
