@@ -24,7 +24,7 @@ namespace CtrlCenter.DataModel
 
         public bool EnableLogging { get; set; }
 
-        public bool TopMost { get; set; } = true;
+        public bool TopMost { get; set; } = false;
 
         public bool? Debug { get; set; }
 

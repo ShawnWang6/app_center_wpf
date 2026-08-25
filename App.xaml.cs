@@ -21,10 +21,25 @@ namespace CtrlCenter
     public partial class App : System.Windows.Application
     {
         bool firstInstance = false;
-        public static IConfiguration Configuration { get; private set; }
+        //public static IConfiguration Configuration { get; private set; }
         public static IServiceProvider ServiceProvider { get; private set; }
         public static LoggingLevelSwitch FileLevelSwitch { get; } = new LoggingLevelSwitch(LogEventLevel.Information);
         public static LoggingLevelSwitch DebugLevelSwitch { get; } = new LoggingLevelSwitch(LogEventLevel.Debug);
+
+        void ClearTempFiles()
+        {
+            var tempPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "preview");
+            string[] files = Directory.GetFiles(tempPath, "*.xlsx");
+            foreach (string file in files)
+            {
+                if (File.Exists(file))
+                {
+                    try { File.Delete(file); }
+                    catch { }
+                }
+            }
+
+        }
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);            
@@ -37,14 +52,16 @@ namespace CtrlCenter
                 return;
             }
 
+            ClearTempFiles()
 
-            var configuration = new ConfigurationBuilder()
-                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .AddEnvironmentVariables()
-                .Build();
-            Configuration = configuration;
 
+            //var configuration = new ConfigurationBuilder()
+            //    .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+            //    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            //    .AddEnvironmentVariables()
+            //    .Build();
+            //Configuration = configuration;
+            var appSetting = Util.LoadAppSetting();
             var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", ".log");
             Log.Logger = new LoggerConfiguration()                
                 .MinimumLevel.Debug()
@@ -59,10 +76,10 @@ namespace CtrlCenter
                 .CreateLogger();
             
             var services = new ServiceCollection();
-            services.AddSingleton<IConfiguration>(configuration);
+            //services.AddSingleton<IConfiguration>(configuration);
 
-            var appSetting = new AppSetting();
-            configuration.GetSection("AppSetting").Bind(appSetting);
+            //var appSetting = new AppSetting();
+            //configuration.GetSection("AppSetting").Bind(appSetting);
             services.AddSingleton(appSetting);
 
             services.AddSingleton<IDbConnFactory, SqliteConnFactory>();

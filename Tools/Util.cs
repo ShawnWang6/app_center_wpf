@@ -143,6 +143,20 @@ namespace CtrlCenter.Tools
             File.WriteAllText(Path.Combine(folder, $"{now.ToString("yyMMddHHmmss")}_zkc.rpt"), json);
         }
 
+        public static AppSetting LoadAppSetting()
+        {
+            try
+            {
+                var file = File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json"));
+                var setting = JsonSerializer.Deserialize<AppSetting>(file);
+                return setting;
+            }
+            catch
+            {
+                return new AppSetting();
+            }
+        }
+
         public static T BuildExcelRptModel<T>(RptFile file) where T : class
         {
             T result = default;
