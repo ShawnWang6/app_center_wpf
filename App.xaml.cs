@@ -41,7 +41,7 @@ namespace CtrlCenter
                     }
                 }
             }
-            catch () { }
+            catch { }
 
         }
         protected override void OnStartup(StartupEventArgs e)
