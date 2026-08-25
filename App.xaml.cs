@@ -45,7 +45,7 @@ namespace CtrlCenter
                 .Build();
             Configuration = configuration;
 
-            var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "OnrRpt-.log");
+            var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", ".log");
             Log.Logger = new LoggerConfiguration()                
                 .MinimumLevel.Debug()
                 .WriteTo.Logger(lc => lc
