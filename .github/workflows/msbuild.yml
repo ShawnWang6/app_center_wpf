@@ -39,10 +39,11 @@ jobs:
 
     # 编译项目 (Release | Any CPU)
     - name: Build the WPF app
-      run: dotnet build WpfCtrlCenter.csproj --configuration Release --no-restore
-
-          Write-Host "Scanning build output"
-          Get-ChildItem -Path .\bin\x86\Release\*.exe -ErrorAction SilentlyContinue -Force | ForEach-Object { $_.FullName }
+      shell: pwsh
+      run: |
+        dotnet build WpfCtrlCenter.csproj --configuration Release --no-restore
+        Write-Host "Scanning build output"
+        Get-ChildItem -Path .\bin\x86\Release\*.exe -ErrorAction SilentlyContinue -Force | ForEach-Object { $_.FullName }
 
     - name: Install Inno Setup
       shell: pwsh
