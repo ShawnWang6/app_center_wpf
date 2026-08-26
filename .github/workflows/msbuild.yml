@@ -1,4 +1,4 @@
-﻿﻿# This workflow uses actions that are not certified by GitHub.
+﻿# This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
 # separate terms of service, privacy policy, and support
 # documentation.
@@ -10,7 +10,16 @@ on:
     branches: [ "net6", "main" ]
   pull_request:
     branches: [ "net6" ]
-
+workflow_dispatch:  # 添加这一行即可启用手动触发
+    inputs:            # 可选：定义传入参数
+      build_config:
+        description: 'Build configuration'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
 env:
   SOLUTION_FILE_PATH: DeviceMgr.sln
   BUILD_CONFIGURATION: Release
