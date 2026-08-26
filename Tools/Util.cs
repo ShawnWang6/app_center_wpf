@@ -149,6 +149,7 @@ namespace CtrlCenter.Tools
             {
                 var file = File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json"));
                 var setting = JsonSerializer.Deserialize<AppSetting>(file);
+                setting.Debug = null;
                 return setting;
             }
             catch
