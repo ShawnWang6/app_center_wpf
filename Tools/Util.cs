@@ -174,8 +174,8 @@ namespace CtrlCenter.Tools
                 var result = $"V{version}";
                 if (app.Type == AppType.ZKC)
                 {
-                    //3.1.7
-                    var support = info.FileMajorPart >= 3 && info.FileMinorPart >= 1 && info.FileBuildPart >= 7;
+                    //3.1.6
+                    var support = info.FileMajorPart >= 3 && info.FileMinorPart >= 1 && info.FileBuildPart >= 6;
                     return support ? string.Empty : $"{result} 不支持";
                 }
                 if (app.Type == AppType.LRT)
