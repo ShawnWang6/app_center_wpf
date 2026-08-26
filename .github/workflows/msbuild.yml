@@ -8,8 +8,6 @@ name: Build WPF App12
 on:
   push:
     branches: [ "net6", "main" ]
-  pull_request:
-    branches: [ "net6" ]
 workflow_dispatch:  # 添加这一行即可启用手动触发
     inputs:            # 可选：定义传入参数
       build_config:
