@@ -1,0 +1,85 @@
+﻿# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Build WPF App12
+
+on:
+  push:
+    branches: [ "net6", "main" ]
+  pull_request:
+    branches: [ "net6" ]
+
+env:
+  SOLUTION_FILE_PATH: DeviceMgr.sln
+  BUILD_CONFIGURATION: Release
+  BUILD_PLATFORM: x86
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest  # WPF 构建必须使用 Windows 运行器
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # 设置 .NET 6 SDK (如果项目需要)
+    - name: Setup .NET 6.0
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '6.0.x'  # 匹配您的目标框架 net6
+
+    # 还原依赖包
+    - name: Restore dependencies
+      run: dotnet restore WpfCtrlCenter.csproj
+
+    # 编译项目 (Release | Any CPU)
+    - name: Build the WPF app
+      shell: pwsh
+      run: |
+        dotnet build WpfCtrlCenter.csproj --configuration Release --no-restore
+        Write-Host "Scanning build output"
+        Get-ChildItem -Path .\bin\x86\Release\*.exe -ErrorAction SilentlyContinue -Force | ForEach-Object { $_.FullName }
+
+    - name: Install Inno Setup
+      shell: pwsh
+      run: |
+        if (Test-Path "C:\Program Files (x86)\Inno Setup 6\iscc.exe") {
+          Write-Host "Inno Setup is already installed"
+        } else {
+          choco install innosetup --no-progress -y
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\iscc.exe")) {
+            throw "Inno Setup installation failed"
+          }
+        }
+
+        $isccPath = "C:\Program Files (x86)\Inno Setup 6"
+        "$isccPath" >> $env:GITHUB_PATH
+
+        if (Test-Path ".\Setup\ChineseSimplified.isl") {
+          New-Item -ItemType Directory -Path "$isccPath\Languages" -Force | Out-Null
+          Copy-Item -Path ".\Setup\ChineseSimplified.isl" -Destination "$isccPath\Languages" -Force
+        }
+
+    - name: Make installer
+      shell: pwsh
+      working-directory: ${{ github.workspace }}
+      run: |
+        .\Setup\make_installer.ps1
+        $setupFile = Get-ChildItem -Path "Setup/Release" -Filter "*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if (-not $setupFile) {
+          throw "No installer package was produced"
+        }
+        "PACKAGE_PATH=$($setupFile.FullName)" >> $env:GITHUB_ENV
+        "PACKAGE_NAME=$($setupFile.Name)" >> $env:GITHUB_ENV
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PACKAGE_NAME }}
+        path: ${{ env.PACKAGE_PATH }}
+

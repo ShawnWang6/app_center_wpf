@@ -7,3 +7,6 @@ obj/
 *.log
 *.nupkg
 *.publish.xml
+/Setup/publish
+/Setup/SetupUtf8.iss
+/Setup/Release
