@@ -46,20 +46,12 @@ jobs:
         Get-ChildItem -Path .\bin\x86\Release\*.exe -ErrorAction SilentlyContinue -Force | ForEach-Object { $_.FullName }
 
     - name: Install Inno Setup
+      run: choco install innosetup -y --no-progress
+    - name: Build Inno Setup installer
       shell: pwsh
       run: |
-        if (Test-Path "C:\Program Files (x86)\Inno Setup 6\iscc.exe") {
-          Write-Host "Inno Setup is already installed"
-        } else {
-          choco install innosetup --no-progress -y
-          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\iscc.exe")) {
-            throw "Inno Setup installation failed"
-          }
-        }
-
         $isccPath = "C:\Program Files (x86)\Inno Setup 6"
         "$isccPath" >> $env:GITHUB_PATH
-
         if (Test-Path ".\Setup\ChineseSimplified.isl") {
           New-Item -ItemType Directory -Path "$isccPath\Languages" -Force | Out-Null
           Copy-Item -Path ".\Setup\ChineseSimplified.isl" -Destination "$isccPath\Languages" -Force
