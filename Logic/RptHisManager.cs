@@ -50,7 +50,7 @@ namespace CtrlCenter.Logic
         }
         public (bool, string, SwitchHisEntity) SaveRptfiles(IDictionary<AppType, RptFile> switchRpts)
         {
-            if (switchRpts.Count < 2)
+            if (switchRpts.Count < 1)
             {
                 return (false, "至少需要3个报表文件", null);
             }

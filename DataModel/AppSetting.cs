@@ -35,5 +35,8 @@ namespace CtrlCenter.DataModel
         //  仅描扫描改时间戳据当前时间最大的时间间隔(单位秒), 默认只扫描最近5分钟的报表文件
         /// </summary>
         public long ScanFileMaxTimeSpanSec { get; set; } = 300;
+
+
+        public uint CfgVer{ get; set; } //26092513,用于调整默认参数
     }
 }

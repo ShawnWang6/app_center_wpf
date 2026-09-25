@@ -66,6 +66,12 @@ namespace CtrlCenter
             //    .Build();
             //Configuration = configuration;
             var appSetting = Util.LoadAppSetting();
+            if (appSetting.CfgVer < 26092513)
+            {
+                appSetting.CfgVer = 26092513;
+                appSetting.ScanFileMaxTimeSpanSec = 600;
+                Util.SaveAppSetting(appSetting);
+            }
             var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", ".log");
             Log.Logger = new LoggerConfiguration()                
                 .MinimumLevel.Debug()

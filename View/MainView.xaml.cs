@@ -25,6 +25,7 @@ namespace CtrlCenter.View
             {
                 FileColumn.Visibility = Visibility.Collapsed;
             }
+            SetLogViewVisible(_model.ShowLog);
         }       
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -70,6 +71,21 @@ namespace CtrlCenter.View
                 
             // 阻止事件继续传播，避免触发默认菜单
             e.Handled = true;
+        }
+        private void SetLogViewVisible(bool visible)
+        {
+            LogView.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+            if (visible)
+            {
+                DataGridRow.Height = new GridLength(130); ;                    // 三行
+                ListViewRow.Height = new GridLength(1, GridUnitType.Star);  // 剩余
+            }
+            else
+            {
+                DataGridRow.Height = new GridLength(1, GridUnitType.Star);  // 填满
+                ListViewRow.Height = new GridLength(0);                    // 不占位
+            }
         }
     }
 }
