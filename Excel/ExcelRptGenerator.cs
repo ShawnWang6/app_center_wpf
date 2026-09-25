@@ -82,7 +82,19 @@ namespace CtrlCenter.Excel
             var lrtRptModel = rpts.ContainsKey(AppType.LRT) ? Util.BuildExcelRptModel<LrtRptModel>(rpts[AppType.LRT]) : null;
             var hvcRptModel = rpts.ContainsKey(AppType.HVC) ? Util.BuildExcelRptModel<HvcRptModel>(rpts[AppType.HVC]) : null;
             var atRptModel = rpts.ContainsKey(AppType.ZKC) ? Util.BuildExcelRptModel<ZkcAtRptModel>(rpts[AppType.ZKC]) : null;
-            
+            var rptSwitchNo =  atRptModel?.RptCfg.SwitchNo;
+            if (rptSwitchNo == null && lrtRptModel != null)
+            {
+                rptSwitchNo = lrtRptModel.DevId;
+            }
+            if (rptSwitchNo == null && hvcRptModel != null)
+            {
+                rptSwitchNo = hvcRptModel.SwitchNo;
+            }
+
+            //固定表头-0
+            replaces[RptPlaceholder.SwitchNo] = rptSwitchNo;
+
             //固定表头-1
             if (lrtRptModel != null)
             {
@@ -109,8 +121,7 @@ namespace CtrlCenter.Excel
             //固定表头-3
             if (atRptModel != null)
             {
-                replaces[RptPlaceholder.DepName] = atRptModel.RptCfg.DeptName;
-                replaces[RptPlaceholder.SwitchNo] = atRptModel.RptCfg.SwitchNo;
+                replaces[RptPlaceholder.DepName] = atRptModel.RptCfg.DeptName;                
                 replaces[RptPlaceholder.LineName] = atRptModel.RptCfg.LineName;
                 replaces[RptPlaceholder.SwitchModel] = atRptModel.RptCfg.SwitchModel;
             }            
@@ -236,7 +247,7 @@ namespace CtrlCenter.Excel
                 DeleteSheetsExcept(workbook, new List<string> { cfg.TemplSheetName });
                 if (!cfg.UseRawSheetName)
                 {
-                    sheet.Name = $"开关-{atRptModel.RptCfg.SwitchNo}";
+                    sheet.Name = $"开关-{rptSwitchNo}";
                 }
                 // 假设你有一个名为 ws 的工作表 (IXLWorksheet)
                 // 在页脚的正中位置添加 "第 n/m 页" 的格式
