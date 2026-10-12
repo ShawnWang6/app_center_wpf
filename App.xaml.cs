@@ -44,6 +44,7 @@ namespace CtrlCenter
             catch { }
 
         }
+        Mutex _singletonMutex = null;
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);            
@@ -55,6 +56,7 @@ namespace CtrlCenter
                 Shutdown(0);                
                 return;
             }
+            _singletonMutex = singletonMutex;
 
             ClearTempFiles();
 
@@ -84,7 +86,9 @@ namespace CtrlCenter
                     .MinimumLevel.ControlledBy(DebugLevelSwitch)
                     .WriteTo.Debug(outputTemplate: "[{Level:u3}] {Message:lj}{NewLine}{Exception}"))            
                 .CreateLogger();
-            
+
+            Log.Information("ReportMaker started");
+
             var services = new ServiceCollection();
             //services.AddSingleton<IConfiguration>(configuration);
 
@@ -113,6 +117,16 @@ namespace CtrlCenter
             initializer.EnsureDatabaseCreated();
         }
 
+        protected override void OnExit(ExitEventArgs e)
+        {
+            Log.Information("ReportMaker stopped");
+            Log.CloseAndFlush();
+            base.OnExit(e);            
+            if (_singletonMutex != null)
+            {
+                try { _singletonMutex.Dispose(); } catch { }
+            }
+        }
         public App()
         {
         }

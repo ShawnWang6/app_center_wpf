@@ -1,6 +1,7 @@
 using CtrlCenter.ViewModel;
 using DocumentFormat.OpenXml.EMMA;
 using DocumentFormat.OpenXml.Wordprocessing;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -87,5 +88,31 @@ namespace CtrlCenter.View
                 ListViewRow.Height = new GridLength(0);                    // 不占位
             }
         }
+
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            var runningApps = _model.RunningApps;
+            if (!string.IsNullOrEmpty(runningApps))
+            {
+                var result = System.Windows.MessageBox.Show(
+                    $"【{runningApps}】 还在运行，同时也关闭他们吗?\n 选择【确定】都关闭\n 选择【不】不关闭\n 选择【取消】都不关闭",
+                    "确认关闭",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+                if (result == MessageBoxResult.Yes)
+                {
+                    _model.CloseRunningApps();                    
+                }
+                if (result == MessageBoxResult.Cancel)
+                {                    
+                    e.Cancel = true;
+                }
+                if (result == MessageBoxResult.No)
+                {                    
+                }
+            }            
+            base.OnClosing(e);
+        }
+
     }
 }

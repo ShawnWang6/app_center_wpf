@@ -7,6 +7,7 @@ using CtrlCenter.Logic;
 using CtrlCenter.Storage;
 using CtrlCenter.Tools;
 using DocumentFormat.OpenXml.EMMA;
+using DocumentFormat.OpenXml.Spreadsheet;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Serilog;
 using System.Collections.ObjectModel;
@@ -21,6 +22,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip;
 
 namespace CtrlCenter.ViewModel
 {
@@ -224,7 +226,11 @@ namespace CtrlCenter.ViewModel
                 {
                     app.FullName = Path.Combine(app.Location, app.Exe + ".exe");
                     app.Process = Util.GetProcess(app.FullName);
-                    MonitorProcess(model);
+                    if (app.Process != null)
+                    {
+                        Log.Warning($"Monitor {app.Type}({app.Process.Id}) is running");
+                        MonitorProcess(model);
+                    }
                 }
 
                 if (string.IsNullOrEmpty(app.Guid))
@@ -292,6 +298,7 @@ namespace CtrlCenter.ViewModel
                         if (!string.Equals(processPath, app.FullName, StringComparison.OrdinalIgnoreCase)) continue;
 
                         var proc = process;
+                        Log.Information($"{app.Model.Type}({process.Id}) started");
                         System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                         {
                             app.Process = proc;
@@ -372,10 +379,38 @@ namespace CtrlCenter.ViewModel
                 RefreshSwitchRptFiles();
             }));
         }
+        
+        public string RunningApps { get => string.Join(",", _runningApp.Select(o => o.Model.Type.ToString())); }
+        public void CloseRunningApps()
+        {
+            if (_appWatcher != null)
+            {                
+                try
+                {
+                    _appWatcher.Stop();      // 停止监控
+                    _appWatcher.Dispose();   // 释放资源
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Stop app watcher error: {ex.Message}");
+                }
+            }
+
+            foreach (var app in _runningApp)
+            {
+                app.Process.EnableRaisingEvents = false;
+                Log.Information($"Activate and close {app.Model.Type}");
+                WindowActivator.ActivateWindow(app.Process, true);
+            }
+        }
         private bool MonitorProcess(AppViewModel app)
         {
             if (app == null || app.Process == null) return false;
-            if (_runningApp.Contains(app)) return false;
+            if (_runningApp.Contains(app)) 
+            {
+                Log.Error($"多次监控到{app.Model.Type}启动, id:{app.Process.Id}");
+                return false;
+            }
 
             _runningApp.Add(app);
             app.Process.EnableRaisingEvents = true;
@@ -383,26 +418,31 @@ namespace CtrlCenter.ViewModel
 
             if (app.Process.HasExited)
             {
+                Log.Warning($"监控到{app?.Model.Type}退出, id:{app.Process.Id}");
                 OnProcessExited(app.Process, EventArgs.Empty);
             }
-
             return true;
         }
         private void OnProcessExited(object sender, EventArgs e)
         {
             var process = sender as Process;
             if (process == null) return;
-
+            Log.Information($"Monitor process {process.Id} exited");
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
                 var app = _runningApp.FirstOrDefault(o => o.Process != null && o.Process.Id == process.Id);
-                if (app == null || app.Process == null) return;
+                if (app == null || app.Process == null) 
+                {
+                    Log.Warning($"退出进程[{process.Id}]未在监控之中");
+                    return;
+                }
 
+                var pid = process.Id;                
                 app.Process.Exited -= OnProcessExited;
                 app.Process.Dispose();
                 app.Process = null;
                 _runningApp.Remove(app);
-                Log.Warning($"[OnProcessExited线程:{Thread.CurrentThread.ManagedThreadId,2}] [{app.Model.Exe}] 已经退出");
+                Log.Warning($"Remove {app?.Model.Type}({pid}) from running list");
             }));
         }
 
