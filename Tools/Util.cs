@@ -176,13 +176,17 @@ namespace CtrlCenter.Tools
                 if (app.Type == AppType.ZKC)
                 {
                     //3.1.6
-                    var support = info.FileMajorPart >= 3 && info.FileMinorPart >= 1 && info.FileBuildPart >= 6;
+                    var support = info.FileMajorPart > 3 ||
+                                  (info.FileMajorPart == 3 && info.FileMinorPart > 1) ||
+                                  (info.FileMajorPart == 3 && info.FileMinorPart == 1 && info.FileBuildPart >= 6);
                     return support ? string.Empty : $"{result} 不支持";
                 }
                 if (app.Type == AppType.LRT)
                 {
                     //2.1.1
-                    var support = info.FileMajorPart >= 2 && info.FileMinorPart >= 1 && info.FileBuildPart >= 1;
+                    var support = info.FileMajorPart > 2 ||
+                                  (info.FileMajorPart == 2 && info.FileMinorPart > 1) ||
+                                  (info.FileMajorPart == 2 && info.FileMinorPart == 1 && info.FileBuildPart >= 1);
                     return support ? string.Empty : $"{result} 不支持";
                 }
                 return string.Empty;
