@@ -48,7 +48,7 @@ namespace CtrlCenter.DataModel
                 return Process == null ? "启动app" : "关闭app";
             }
         }        
-        public Func<string, (string, string)> GetTxtAndSwitchNo { get; set; }        
+        public Func<string, AppSetting,(string, string)> GetTxtAndSwitchNo { get; set; }        
         public bool CanSelectRptLoc { get; set; } = false;
         public ExcelCfgModel ExcelCfgModel { get; set; }
     }

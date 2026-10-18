@@ -68,10 +68,10 @@ namespace CtrlCenter
             //    .Build();
             //Configuration = configuration;
             var appSetting = Util.LoadAppSetting();
-            if (appSetting.CfgVer < 26092513)
+            if (appSetting.CfgVer < 26101820)
             {
-                appSetting.CfgVer = 26092513;
-                appSetting.ScanFileMaxTimeSpanSec = 600;
+                appSetting.CfgVer = 26101820;
+                appSetting.ScanFileMaxTimeSpanSec = 3600;
                 Util.SaveAppSetting(appSetting);
             }
             var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", ".log");
@@ -81,6 +81,9 @@ namespace CtrlCenter
                     .MinimumLevel.ControlledBy(FileLevelSwitch)
                     .WriteTo.File(logPath,
                               rollingInterval: RollingInterval.Month,
+                              fileSizeLimitBytes: 64 * 1024 * 1024,
+                              rollOnFileSizeLimit: true,
+                              retainedFileCountLimit: 30,
                               outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}"))
                 .WriteTo.Logger(lc => lc
                     .MinimumLevel.ControlledBy(DebugLevelSwitch)

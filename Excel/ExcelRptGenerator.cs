@@ -51,7 +51,10 @@ namespace CtrlCenter.Excel
         /// <param name="outputPath">输出文件路径</param>
         /// <param name="rpts">报表数据</param>
         /// <param name="sheetName">模板sheet名</param>
-        public static string GenerateReport(string templatePath, string outputPath,
+        public static string GenerateReport(
+                                   AppSetting appSetting,
+                                   string templatePath,
+                                   string outputPath,
                                    IDictionary<AppType, RptFile> rpts,
                                    ExcelCfgModel cfg = null)
         {
@@ -79,9 +82,9 @@ namespace CtrlCenter.Excel
                 { RptPlaceholder.WvtAc, string.Empty },
                 { RptPlaceholder.WvtResul, string.Empty },
             };
-            var lrtRptModel = rpts.ContainsKey(AppType.LRT) ? Util.BuildExcelRptModel<LrtRptModel>(rpts[AppType.LRT]) : null;
-            var hvcRptModel = rpts.ContainsKey(AppType.HVC) ? Util.BuildExcelRptModel<HvcRptModel>(rpts[AppType.HVC]) : null;
-            var atRptModel = rpts.ContainsKey(AppType.ZKC) ? Util.BuildExcelRptModel<ZkcAtRptModel>(rpts[AppType.ZKC]) : null;
+            var lrtRptModel = rpts.ContainsKey(AppType.LRT) ? Util.BuildExcelRptModel<LrtRptModel>(rpts[AppType.LRT], appSetting) : null;
+            var hvcRptModel = rpts.ContainsKey(AppType.HVC) ? Util.BuildExcelRptModel<HvcRptModel>(rpts[AppType.HVC], appSetting) : null;
+            var atRptModel = rpts.ContainsKey(AppType.ZKC) ? Util.BuildExcelRptModel<ZkcAtRptModel>(rpts[AppType.ZKC], appSetting) : null;
             var rptSwitchNo =  atRptModel?.RptCfg.SwitchNo;
             if (rptSwitchNo == null && lrtRptModel != null)
             {

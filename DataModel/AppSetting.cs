@@ -36,6 +36,10 @@ namespace CtrlCenter.DataModel
         /// </summary>
         public long ScanFileMaxTimeSpanSec { get; set; } = 300;
 
+        //扫码枪输入配置
+        //类型：DLQ，厂商：XXX公司，型号：DLQ-23-HW，ID：DLQ0E0A01001202609210066，生产日期：2526年09月21日
+        public string BarcodeIdRegex { get; set; } //匹配开关编号正则
+        public int? BarcodeIdSize { get; set; } //取ID后几位
 
         public uint CfgVer{ get; set; } //26092513,用于调整默认参数
     }

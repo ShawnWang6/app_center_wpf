@@ -1,9 +1,6 @@
 ﻿using CtrlCenter.DataModel;
-using CtrlCenter.Interfaces;
-using CtrlCenter.Storage;
 using CtrlCenter.Tools;
 using Serilog;
-using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
 
@@ -35,7 +32,8 @@ namespace CtrlCenter.Logic
         void RescanRptFiles(IList<AppModel> apps)
         {
             // Get the current timestamp
-            long currentTimestamp = Util.GetNowRptTimestamp();
+
+            long earliestTimestamp = Util.GetAllowRptTimestamp(_appSetting.ScanFileMaxTimeSpanSec);
 
             // Temporary dictionary to store the latest files during this scan
             var newLatestFiles = new Dictionary<string, RptFile>(StringComparer.OrdinalIgnoreCase);
@@ -57,7 +55,7 @@ namespace CtrlCenter.Logic
                     fileName = fileName.ToLower();
                     var fileTimestamp = GetTimestampFromFileName(fileName);
                     if (fileTimestamp == null) continue;
-                    if (currentTimestamp - fileTimestamp.Value > _appSetting.ScanFileMaxTimeSpanSec)
+                    if (fileTimestamp.Value < earliestTimestamp )
                     {
                         continue;
                     }
@@ -70,7 +68,7 @@ namespace CtrlCenter.Logic
                     else
                     {
                         // Create a new RptFile object
-                        var (content, switchNo) = app.GetTxtAndSwitchNo(file);
+                        var (content, switchNo) = app.GetTxtAndSwitchNo(file, _appSetting);
                         var newRptFile = new RptFile
                         {
                             TimeStamp = fileTimestamp.Value,
@@ -98,8 +96,8 @@ namespace CtrlCenter.Logic
             }
             else
             {
-                long currentTimestamp = Util.GetNowRptTimestamp();
-                if (currentTimestamp - rpt.TimeStamp > _appSetting.ScanFileMaxTimeSpanSec)
+                long earliestTimestamp = Util.GetAllowRptTimestamp(_appSetting.ScanFileMaxTimeSpanSec);
+                if (rpt.TimeStamp < earliestTimestamp)
                 {
                     return;
                 }
@@ -158,27 +156,27 @@ namespace CtrlCenter.Logic
             return null;
         }
 
-        public static RptFile GetAppNewRptFile(Func<string, (string, string)> getTxtAndSwitchNo,
-            string appName, AppType appType, string filePath)
+        public static RptFile GetAppNewRptFile(AppModel app, string filePath, AppSetting setting)
         {
+            if (app == null) return null;
             var fileName = Path.GetFileName(filePath);
             Match match = _timestampRegex.Match(fileName);
             if (!match.Success)
             {
-                Log.Warning($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{appName}报表文件: {filePath}");
+                Log.Warning($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name}报表文件: {filePath}");
                 return null;
             }
-            var (content, switchNo) = getTxtAndSwitchNo(filePath);
+            var (content, switchNo) = app.GetTxtAndSwitchNo(filePath, setting);
             if (string.IsNullOrEmpty(switchNo))
             {
-                Log.Warning($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{appName} 文件{filePath}的开关编号");
+                Log.Warning($"线程[{Thread.CurrentThread.ManagedThreadId}] 未能识{app.Name} 文件{filePath}的开关编号");
                 return null;
             }
             var fileTimestamp = GetTimestampFromFileName(fileName);
             return new RptFile
             {
                 TimeStamp = fileTimestamp.Value,
-                FileType = appType,
+                FileType = app.Type,
                 SwitchNo = switchNo,
                 FilePath = filePath,
                 Content = content,

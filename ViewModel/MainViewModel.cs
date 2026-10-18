@@ -371,7 +371,7 @@ namespace CtrlCenter.ViewModel
         private void ProcessNewFile(AppViewModel model, string filePath)
         {
             var app = model.Model;
-            RptFile rpt = RptFileManager.GetAppNewRptFile(app.GetTxtAndSwitchNo, app.Name, app.Type, filePath);
+            RptFile rpt = RptFileManager.GetAppNewRptFile(app, filePath, _appSetting);
             if (rpt == null) return;
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
@@ -566,7 +566,8 @@ namespace CtrlCenter.ViewModel
             //System.Windows.MessageBox.Show($"预览合并报表: {rptFiles.Count}");
             var rpts = _rptFileManager.SwitchFiles.Values;            
             var previewFile = GenPreviewXlsFile();
-            var errMsg = ExcelRptGenerator.GenerateReport(ExcelRptTemplate, previewFile, _rptFileManager.SwitchFiles);
+            var errMsg = ExcelRptGenerator.GenerateReport(_appSetting, 
+                ExcelRptTemplate, previewFile, _rptFileManager.SwitchFiles);
             if (string.IsNullOrEmpty(errMsg) && _hasXlsAssociatedApp)
             {
                 errMsg = TryOpenRptXls(previewFile);
@@ -610,7 +611,7 @@ namespace CtrlCenter.ViewModel
             {
                 var rpts = Util.ParseRptHisJson(SelectedRptHis[0].Model.RptJson);
                 var printFile = GenPrintXlsFile(SelectedRptHis[0].Model.Id);
-                var errMsg = ExcelRptGenerator.GenerateReport(ExcelRptTemplate, printFile, rpts);
+                var errMsg = ExcelRptGenerator.GenerateReport(_appSetting, ExcelRptTemplate, printFile, rpts);
                 if (!string.IsNullOrEmpty(errMsg))
                 {
                     System.Windows.MessageBox.Show($"生成打表失败: {errMsg}");

@@ -3,6 +3,7 @@ using CtrlCenter.DataModel;
 using CtrlCenter.Storage;
 using DocumentFormat.OpenXml.Drawing.Diagrams;
 using DocumentFormat.OpenXml.Office2013.Excel;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Win32;
 using Serilog;
 using System.Collections.Generic;
@@ -16,6 +17,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace CtrlCenter.Tools
 {
@@ -43,26 +45,30 @@ namespace CtrlCenter.Tools
         }
 
 
-        public static (string, string) GetTxtAndNoFromZkc(string filePath)
+        public static (string, string) GetTxtAndNoFromZkc(string filePath, AppSetting setting)
         {
             var json = File.ReadAllText(filePath);
             var data = JsonSerializer.Deserialize<ZkcRptSwitchNoModel>(json);
             return (json, data?.RptCfg?.SwitchNo);
         }
-        public static (string, string) GetTxtAndNoFromLrt(string filePath)
+        public static (string, string) GetTxtAndNoFromLrt(string filePath, AppSetting setting)
         {
             var json = File.ReadAllText(filePath);
             var data = JsonSerializer.Deserialize<LrtRptSwitchNoModel>(json);
             return (json, data?.DevId);
         }
-
-        public static (string, string) GetTxtAndNoFromHvc(string filePath)
+        public static (string/*content*/, string/*switchNo*/) GetTxtAndNoFromHvc(string filePath, AppSetting setting)
         {
             // Handle CSV file (app3)      
             var lines = File.ReadAllLines(filePath, GbkEncoding);
             if (lines.Length > 0)
             {
-                return (lines[0], lines[0].Split(',')[0]); // First column is the switch number
+                var (tokens, switchNo) = PickHvcTokensFromLine(lines[0], setting);
+                if (switchNo == null || tokens.Length < 6)
+                {
+                    return (null, null);
+                }
+                return (lines[0], switchNo);
             }
             return (null, null);
         }
@@ -212,20 +218,61 @@ namespace CtrlCenter.Tools
             }
         }
 
-        public static T BuildExcelRptModel<T>(RptFile file) where T : class
+        static string PickSwitchNoFromXjBarcode(string input, AppSetting setting)
+        {
+            int suffixLen = 12;
+            string pattern = pattern = @"ID[：:]\s*([A-Za-z0-9]+)";
+            //类型：DLQ，厂商：珠海许继电气有限公司，型号：DLQ-23-HW，ID：DLQ0E0A01001202609210066，生产
+            //日期：2026年09月21日
+            try
+            {
+                Match m = Regex.Match(input, pattern);
+                if (m.Success)
+                {
+                    string no = m.Groups[1].Value;
+                    return no.Length < suffixLen ? no : no.Substring(no.Length - suffixLen);
+                }
+            }
+            catch (Exception)
+            {
+
+            }
+            return null;
+        }
+        public static (string[]/*tokens*/, string/*swithNo*/) PickHvcTokensFromLine(string line, AppSetting setting)
+        {
+            var tokens = line.Split(',');
+            if (tokens.Length < 6)
+            {
+                return (tokens, null);
+            }
+            int tokenBase = tokens.Length - 5;
+            var switchNo = PickSwitchNoFromXjBarcode(tokens[tokenBase + 0], setting);
+            if (string.IsNullOrEmpty(switchNo))
+            {
+                switchNo = tokens[tokenBase + 0];
+            }
+            return (tokens, switchNo);
+        }
+        public static T BuildExcelRptModel<T>(RptFile file, AppSetting setting) where T : class
         {
             T result = default;
             if (file.FileType == AppType.HVC)
             {
-                var tokens = file.Content.Split(',');
+                var (tokens, switchNo) = PickHvcTokensFromLine(file.Content, setting);
+                if (switchNo == null || tokens.Length < 6)
+                {
+                    return result;
+                }
+                int tokenBase = tokens.Length  - 5;
                 result = new HvcRptModel
                 {
                     TestTime = ParseYyMmDdHhMmSs(file.TimeStamp).ToString("yyyy-MM-dd HH:mm:ss"),
-                    SwitchNo = tokens.Length > 1 ? tokens[1] : string.Empty,                    
-                    Dc = tokens.Length > 2 ?  tokens[2] : string.Empty,
-                    Ac = tokens.Length > 3 ? tokens[3] : string.Empty,
-                    InsRes = tokens.Length > 4 ? tokens[4] : string.Empty,
-                    Result = tokens.Length > 5 ? tokens[5] : string.Empty,
+                    SwitchNo = switchNo,
+                    Dc = tokens[tokenBase + 1],
+                    Ac = tokens[tokenBase + 2],
+                    InsRes = tokens[tokenBase + 3],
+                    Result = tokens[tokenBase + 4],
                 } as T;
             }
             else
@@ -257,9 +304,9 @@ namespace CtrlCenter.Tools
 
             return false;
         }
-        public static long GetNowRptTimestamp()
+        public static long GetAllowRptTimestamp(long spanSec)
         {
-            return long.Parse(DateTime.Now.ToString("yyMMddHHmmss"));
+            return long.Parse((DateTime.Now - TimeSpan.FromSeconds(spanSec)).ToString("yyMMddHHmmss"));
         }
         public static DateTime ParseYyMmDdHhMmSs(long input)
         { 
