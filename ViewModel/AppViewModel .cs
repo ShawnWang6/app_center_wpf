@@ -130,6 +130,11 @@ namespace CtrlCenter.ViewModel
             }
         }
 
+        public string AppFolderTip
+        {
+            get => string.IsNullOrEmpty(_model.Location) ? "尚未安装" : _model.Location;
+        }
+
         public string RptFolderTip
         {
             get => string.IsNullOrEmpty(_model.RptFolder) ? "未设置报表目录" : $"报表目录：{_model.RptFolder}";

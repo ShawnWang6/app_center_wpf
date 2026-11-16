@@ -177,13 +177,14 @@
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                                 <Button Margin="1,0"
                                         Content="{Binding ActionText}"
+                                        ToolTip="{Binding AppFolderTip}"
                                         Command="{Binding DataContext.DynamicActionCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                         CommandParameter="{Binding}" />
                                     <Button Content="{Binding SetRptFolderText}"  Margin="2,0"
                                         IsEnabled="{Binding CanSelectRptLoc}"
                                         ToolTip="{Binding RptFolderTip}"
                                         Visibility="{Binding CanSelectRptLoc, Converter={StaticResource BoolToVisibility}}" 
-                                        Command="{Binding DataContext.SelectAppLocCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                        Command="{Binding DataContext.SelectAppRptLocCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                         CommandParameter="{Binding}" />
                                     <TextBlock Text="{Binding Version}" Margin="1,0" VerticalAlignment="Center" Foreground="Red" />
                             </StackPanel>

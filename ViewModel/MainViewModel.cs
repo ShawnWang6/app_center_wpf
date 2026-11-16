@@ -120,7 +120,7 @@ namespace CtrlCenter.ViewModel
         public ICommand ToggleTopmostCommand { get; }
         public ICommand AppSettingCommand { get; }
         public ICommand SimAppRptCommand { get; }
-        public ICommand SelectAppLocCommand { get; }
+        public ICommand SelectAppRptLocCommand { get; }
         public ICommand DynamicActionCommand { get; }
         public ICommand MergeRptCommand { get; }
         public ICommand PreviewMergedRptCommand { get; }
@@ -162,7 +162,7 @@ namespace CtrlCenter.ViewModel
                         Exe = "HighVoltCableTestSystem",
                         GetTxtAndSwitchNo = Util.GetTxtAndNoFromHvc,
                         RptPattern = "????????????*.csv",
-                        CanSelectRptLoc = true,
+                        CanSelectRptLoc = false,
                     }
             };
 
@@ -234,8 +234,9 @@ namespace CtrlCenter.ViewModel
                 }
 
                 if (string.IsNullOrEmpty(app.Guid))
-                {   
-                    app.RptFolder = Util.LoadAppPath(model.RptFolderRegKey);
+                {
+                    //app.RptFolder = Util.LoadAppPath(model.RptFolderRegKey);
+                    app.RptFolder = Util.ReadAppProfileKey(app.FullName, "Config.ini", "CONFIG", "EXPORT_PATH");
                 }
                 else if (!string.IsNullOrEmpty(app.Location))
                 {
@@ -245,7 +246,14 @@ namespace CtrlCenter.ViewModel
                 // Ensure ScanFolder exists
                 if (!string.IsNullOrEmpty(app.RptFolder) && !Directory.Exists(app.RptFolder))
                 {
-                    Directory.CreateDirectory(app.RptFolder);
+                    try
+                    {
+                        Directory.CreateDirectory(app.RptFolder);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Failed to create rpt folder {app.RptFolder} for {app.FullName}, error:{ex.Message}");
+                    }                    
                 }
             }
         }
@@ -320,6 +328,8 @@ namespace CtrlCenter.ViewModel
             foreach (var app in apps)
             {
                 if (string.IsNullOrEmpty(app.RptFolder)) continue;
+
+                if (!Directory.Exists(app.RptFolder)) continue;
 
                 if (_rptWatchers.ContainsKey(app.Model.Type)) continue;
                 Log.Information($"Monitor: {app.RptFolder}");
@@ -471,7 +481,7 @@ namespace CtrlCenter.ViewModel
             ToggleTopmostCommand = new RelayCommand<MainViewModel> (ExecuteToggleTopmost);
             AppSettingCommand = new RelayCommand<MainViewModel>(ExecuteAppSetting);
             SimAppRptCommand = new RelayCommand<MainViewModel>(ExecuteSimAppRpt);            
-            SelectAppLocCommand = new RelayCommand<AppViewModel>(ExecuteSelectAppLoc);
+            SelectAppRptLocCommand = new RelayCommand<AppViewModel>(ExecuteSelectAppRptLoc);
             DynamicActionCommand = new RelayCommand<AppViewModel>(ExecuteDynamicAction);
 
             MergeRptCommand = new RelayCommand<ObservableCollection<RptFileViewModel>>(ExecuteMergeRpt);
@@ -711,7 +721,7 @@ namespace CtrlCenter.ViewModel
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        private void ExecuteSelectAppLoc(AppViewModel model)
+        private void ExecuteSelectAppRptLoc(AppViewModel model)
         {
             // 设置报表输出位置
             //System.Windows.MessageBox.Show($"设置{model.Name}报表文件夹");

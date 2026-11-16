@@ -73,6 +73,82 @@ namespace CtrlCenter.Tools
             return (null, null);
         }
 
+        /// <summary>
+        /// 读取指定 app 同路径下的 ini 文件配置项
+        /// </summary>
+        /// <param name="appPath">app 完整路径，如 c:\a\b\app.exe</param>
+        /// <param name="iniName">ini 文件名，如 app.ini</param>
+        /// <param name="section">节名，如 "Settings"</param>
+        /// <param name="key">键名，如 "UserName"</param>
+        /// <returns>值；找不到返回 null</returns>
+        public static string? ReadAppProfileKey(string appPath, string iniName, string section, string key)
+        {
+            try 
+            {
+                if (string.IsNullOrWhiteSpace(appPath))
+                    throw new ArgumentException("appPath 不能为空", nameof(appPath));
+                if (string.IsNullOrWhiteSpace(iniName))
+                    throw new ArgumentException("iniName 不能为空", nameof(iniName));
+
+                // 1. 取 app 所在目录，拼接 ini 完整路径
+                string? appDir = Path.GetDirectoryName(Path.GetFullPath(appPath));
+                if (string.IsNullOrEmpty(appDir))
+                    return null;
+
+                string iniFullPath = Path.Combine(appDir, iniName);
+                if (!File.Exists(iniFullPath))
+                    return null;
+
+                string? currentSection = null;
+                bool sectionFound = false;
+
+                // 2. 用 GBK 编码读取（注意：需要 CodePagesEncodingProvider）
+                var lines = File.ReadAllLines(iniFullPath, GbkEncoding);
+                foreach (string line in lines)
+                {
+                    string trimmed = line.Trim();
+
+                    // 跳过空行和注释
+                    if (trimmed.Length == 0) continue;
+                    if (trimmed.StartsWith(";") || trimmed.StartsWith("#")) continue;
+
+                    // section 行：[SectionName]
+                    if (trimmed.StartsWith("[") && trimmed.EndsWith("]"))
+                    {
+                        currentSection = trimmed.Substring(1, trimmed.Length - 2).Trim();
+                        sectionFound = string.Equals(currentSection, section, StringComparison.OrdinalIgnoreCase);
+                        continue;
+                    }
+
+                    // 只在目标 section 内匹配 key
+                    if (!sectionFound) continue;
+
+                    int eqIndex = trimmed.IndexOf('=');
+                    if (eqIndex <= 0) continue;
+
+                    string lineKey = trimmed.Substring(0, eqIndex).Trim();
+                    if (!string.Equals(lineKey, key, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string value = trimmed.Substring(eqIndex + 1).Trim();
+
+                    // 去掉可能的引号包裹
+                    if (value.Length >= 2 &&
+                        ((value[0] == '"' && value[^1] == '"') || (value[0] == '\'' && value[^1] == '\'')))
+                    {
+                        value = value.Substring(1, value.Length - 2);
+                    }
+
+                    return value;
+                }
+            }
+            catch(Exception ex)
+            {                
+            }
+            return null;
+        }
+
+
         public static SwitchHisEntity BuildSwitchHisEntity(IDictionary<AppType, RptFile> rpts, string switchNo)
         {
             var (minTime, maxTime) = rpts.Values.Aggregate(
